@@ -13,7 +13,7 @@ Long report 20바이트: `[0x11][0xFF][feature index][fn<<4 | sw_id][params… 1
 - 응답은 같은 헤더(feature index, fn, sw_id 그대로)
 - 에러: feature index 자리에 `0xFF`, params = `[orig feature, orig fn|sw, error code]`
 - G HUB의 sw_id = `0xC`, 장치 이벤트(notification)의 sw_id = `0x0`
-- set 계열 함수의 응답 params는 전부 0 (설정값 echo 없음)
+- set 응답: LED/우퍼는 params 전부 0, EQ는 요청 echo
 
 ## 기능 인덱스 (이 펌웨어)
 
