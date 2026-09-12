@@ -65,8 +65,60 @@ def cmd_enumerate(_):
         print(f'{f["index"]:2d}  {f["id"]:#06x}  v{f["version"]}  {f["name"]}{flag}')
 
 
+def _safe(dev, idx, fn, params=b""):
+    try:
+        return call(dev, idx, fn, params).params.hex()
+    except (RuntimeError, TimeoutError) as e:
+        return f"ERR {e}"
+
+
+def dump_state(dev):
+    feats = enumerate_features(dev)
+    by_id = {f["id"]: f["index"] for f in feats}
+    state = {}
+
+    def get(fid, fn, params=b"", key=None):
+        if fid not in by_id:
+            return None
+        r = _safe(dev, by_id[fid], fn, params)
+        state.setdefault(f"{fid:#06x}", {})[key or str(fn)] = r
+        return None if r.startswith("ERR") else bytes.fromhex(r)
+
+    get(0x0003, 0); get(0x0003, 1, bytes([0]))
+    get(0x0005, 0); get(0x0005, 1, bytes([0]))
+
+    info = get(0x8070, 0)
+    if info:
+        for z in range(info[0]):
+            zi = get(0x8070, 1, bytes([z]), key=f"1/zone{z}")
+            if zi:
+                for e in range(zi[3]):
+                    get(0x8070, 2, bytes([z, e]), key=f"2/zone{z}/effect{e}")
+
+    if get(0x8310, 0):
+        get(0x8310, 1, bytes([0]), key="1/start0"); get(0x8310, 1, bytes([7]), key="1/start7"); get(0x8310, 2)
+
+    if get(0x8040, 0):
+        get(0x8040, 1)
+
+    for fid in (0x8300, 0x8320):
+        get(fid, 0)
+    for f in feats:
+        if f["name"] == "?" and f["id"] not in FORBIDDEN:
+            get(f["id"], 0)
+    return {"features": feats, "state": state}
+
+
+def cmd_dump(args):
+    if not args:
+        sys.exit("usage: g560probe.py dump <out.json>")
+    dev = open_device()
+    json.dump(dump_state(dev), open(args[0], "w"), indent=2)
+    print("wrote", args[0])
+
+
 if __name__ == "__main__":
-    cmds = {"enumerate": cmd_enumerate}
+    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump}
     if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        sys.exit("usage: g560probe.py enumerate")
+        sys.exit("usage: g560probe.py enumerate | dump <out.json>")
     cmds[sys.argv[1]](sys.argv[2:])
