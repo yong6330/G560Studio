@@ -111,14 +111,28 @@ def dump_state(dev):
 
 def cmd_dump(args):
     if not args:
-        sys.exit("usage: g560probe.py dump <out.json>")
+        sys.exit("usage: g560probe.py dump <out.json> | diff <a.json> <b.json>")
     dev = open_device()
     json.dump(dump_state(dev), open(args[0], "w"), indent=2)
     print("wrote", args[0])
 
 
+def cmd_diff(args):
+    if len(args) != 2:
+        sys.exit("usage: g560probe.py diff <a.json> <b.json>")
+    a, b = (json.load(open(x))["state"] for x in args)
+    changed = 0
+    for fid in sorted(set(a) | set(b)):
+        for fn in sorted(set(a.get(fid, {})) | set(b.get(fid, {}))):
+            x, y = a.get(fid, {}).get(fn), b.get(fid, {}).get(fn)
+            if x != y:
+                changed += 1
+                print(f"{fid} fn {fn}:\n  {x}\n  {y}")
+    print("no differences" if not changed else f"{changed} changed")
+
+
 if __name__ == "__main__":
-    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump}
+    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump, "diff": cmd_diff}
     if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        sys.exit("usage: g560probe.py enumerate | dump <out.json>")
+        sys.exit("usage: g560probe.py enumerate | dump <out.json> | diff <a.json> <b.json>")
     cmds[sys.argv[1]](sys.argv[2:])
