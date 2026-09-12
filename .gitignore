@@ -1,0 +1,7 @@
+.superpowers/
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+.DS_Store
+factory-defaults.local.json
