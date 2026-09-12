@@ -112,7 +112,7 @@ def dump_state(dev):
 
 def cmd_dump(args):
     if not args:
-        sys.exit("usage: g560probe.py dump <out.json> | diff <a.json> <b.json> | listen")
+        sys.exit("usage: g560probe.py dump <out.json> | diff <a.json> <b.json> | listen | send <hex> [--yes] | restore")
     dev = open_device()
     json.dump(dump_state(dev), open(args[0], "w"), indent=2)
     print("wrote", args[0])
@@ -120,7 +120,7 @@ def cmd_dump(args):
 
 def cmd_diff(args):
     if len(args) != 2:
-        sys.exit("usage: g560probe.py diff <a.json> <b.json> | listen")
+        sys.exit("usage: g560probe.py diff <a.json> <b.json> | listen | send <hex> [--yes] | restore")
     a, b = (json.load(open(x))["state"] for x in args)
     changed = 0
     for fid in sorted(set(a) | set(b)):
@@ -150,8 +150,40 @@ def cmd_listen(args):
             print(time.strftime('%H:%M:%S'), "disconnected:", e)
             time.sleep(1)
 
+def cmd_send(args):
+    """확정된 20바이트를 그대로 전송. FORBIDDEN/미상 인덱스는 거부."""
+    if not args or len(args[0]) != 40:
+        sys.exit("usage: g560probe.py send <40 hex> [--yes]")
+    raw = bytes.fromhex(args[0])
+    dev = open_device()
+    ids = {f["index"]: f["id"] for f in enumerate_features(dev)}
+    if ids.get(raw[2]) is None or ids[raw[2]] in FORBIDDEN:
+        sys.exit(f"refusing: feature index {raw[2]} is forbidden/unknown")
+    if "--yes" not in args:
+        print("about to send:", raw.hex())
+        if input("y to continue: ").strip() != "y":
+            sys.exit("aborted")
+    dev.write(raw)
+    r = dev.read(20, timeout=TIMEOUT_MS)
+    print("reply:", bytes(r).hex() if r else "(none)")
+
+
+def cmd_restore(args):
+    """factory-defaults.json 의 우퍼·EQ 값을 장치에 다시 쓴다. LED는 휘발성이라 전원 재시작으로 복원."""
+    snap = json.load(open("factory-defaults.json"))["state"]
+    dev = open_device()
+    ids = {f["id"]: f["index"] for f in enumerate_features(dev)}
+    woofer = bytes.fromhex(snap["0x8305"]["0"])[:1]
+    call(dev, ids[0x8305], 1, woofer)                                  # setWoofer
+    eq = bytes.fromhex(snap["0x8310"]["2"])[:10]
+    call(dev, ids[0x8310], 3, b"\x02" + eq)                           # setEqualizer (EEPROM)
+    after = dump_state(dev)["state"]
+    ok = after["0x8305"]["0"] == snap["0x8305"]["0"] and after["0x8310"]["2"] == snap["0x8310"]["2"]
+    print("restored: woofer", woofer[0], "eq", list(eq), "| verified" if ok else "| MISMATCH")
+
+
 if __name__ == "__main__":
-    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump, "diff": cmd_diff, "listen": cmd_listen}
+    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump, "diff": cmd_diff, "listen": cmd_listen, "send": cmd_send, "restore": cmd_restore}
     if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        sys.exit("usage: g560probe.py enumerate | dump <out.json> | diff <a.json> <b.json> | listen")
+        sys.exit("usage: g560probe.py enumerate | dump <out.json> | diff <a.json> <b.json> | listen | send <hex> [--yes] | restore")
     cmds[sys.argv[1]](sys.argv[2:])
