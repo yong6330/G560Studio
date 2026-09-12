@@ -22,6 +22,7 @@ FORBIDDEN = {0x0020, 0x00C2, 0x00C3, 0x00D0, 0x1801, 0x1802, 0x1E00}
 
 
 def open_device():
+    hid.hidapi.hid_darwin_set_open_exclusive(0)   # 공유 모드: G HUB와 동시에 열 수 있게
     for d in hid.enumerate(VID, PID):
         if d["usage_page"] == USAGE_PAGE:
             dev = hid.Device(path=d["path"])
@@ -111,7 +112,7 @@ def dump_state(dev):
 
 def cmd_dump(args):
     if not args:
-        sys.exit("usage: g560probe.py dump <out.json> | diff <a.json> <b.json>")
+        sys.exit("usage: g560probe.py dump <out.json> | diff <a.json> <b.json> | listen")
     dev = open_device()
     json.dump(dump_state(dev), open(args[0], "w"), indent=2)
     print("wrote", args[0])
@@ -119,7 +120,7 @@ def cmd_dump(args):
 
 def cmd_diff(args):
     if len(args) != 2:
-        sys.exit("usage: g560probe.py diff <a.json> <b.json>")
+        sys.exit("usage: g560probe.py diff <a.json> <b.json> | listen")
     a, b = (json.load(open(x))["state"] for x in args)
     changed = 0
     for fid in sorted(set(a) | set(b)):
@@ -131,8 +132,26 @@ def cmd_diff(args):
     print("no differences" if not changed else f"{changed} changed")
 
 
+def cmd_listen(args):
+    """G HUB 등 다른 프로세스에 대한 장치 응답을 그대로 출력 (읽기 전용). 끊기면 재연결. Ctrl-C로 종료."""
+    print("listening... (Ctrl-C to stop)")
+    while True:
+        try:
+            dev = open_device()
+            names = {f["index"]: f["name"] for f in enumerate_features(dev)}
+            print(time.strftime('%H:%M:%S'), "connected")
+            while True:
+                raw = dev.read(20, timeout=500)
+                if raw and raw[0] == 0x11:
+                    r = parse(raw)
+                    print(f"{time.strftime('%H:%M:%S')} idx {r.feature_index:2d} {names.get(r.feature_index,'?'):18s} "
+                          f"fn {r.fn:2d} sw {r.sw_id:x}  {r.params.hex()}")
+        except (hid.HIDException, TimeoutError, SystemExit) as e:
+            print(time.strftime('%H:%M:%S'), "disconnected:", e)
+            time.sleep(1)
+
 if __name__ == "__main__":
-    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump, "diff": cmd_diff}
+    cmds = {"enumerate": cmd_enumerate, "dump": cmd_dump, "diff": cmd_diff, "listen": cmd_listen}
     if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        sys.exit("usage: g560probe.py enumerate | dump <out.json> | diff <a.json> <b.json>")
+        sys.exit("usage: g560probe.py enumerate | dump <out.json> | diff <a.json> <b.json> | listen")
     cmds[sys.argv[1]](sys.argv[2:])
