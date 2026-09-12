@@ -5,3 +5,4 @@
 xcuserdata/
 .DS_Store
 factory-defaults.local.json
+tools/.venv/
