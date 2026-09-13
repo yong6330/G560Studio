@@ -11,7 +11,8 @@ public struct Profile: Codable, Identifiable, Equatable, Sendable, Hashable {
     public static func makeDefault(name: String) -> Profile {
         Profile(id: UUID(), name: name,
                 lighting: .soundReactive(ZoneColors(all: RGB(255, 255, 255)), sensitivity: 1.5, splitBands: false),
-                volume: 0.5, woofer: G560.factoryWoofer, eq: G560.factoryEQ)
+                volume: OutputVolume.get() ?? 0.3,   // 현재 시스템 볼륨 그대로 — 갑자기 커지지 않게
+                woofer: G560.factoryWoofer, eq: G560.factoryEQ)
     }
 }
 
