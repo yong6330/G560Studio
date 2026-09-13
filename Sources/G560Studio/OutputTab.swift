@@ -30,14 +30,6 @@ struct VerticalSlider: View {
 struct OutputTab: View {
     @Environment(AppState.self) var state
 
-    static let presets: [(String, [Int])] = [
-        ("Flat", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-        ("Bass Boost", [5, 4, 3, 1, 0, 0, 0, 0, 0, 0]),
-        ("Night", [-8, -6, -4, -2, 0, 0, 0, 0, 0, 0]),
-        ("Vocal", [-2, -1, 0, 1, 3, 3, 2, 1, 0, 0]),
-        ("Treble", [0, 0, 0, 0, 0, 1, 2, 3, 4, 4]),
-        ("Loudness", [4, 3, 1, 0, -1, -1, 0, 1, 3, 4]),
-    ]
     let eqHeight: CGFloat = 120
 
     var body: some View {
@@ -74,17 +66,13 @@ struct OutputTab: View {
                 .frame(height: eqHeight + 40)
                 .padding(.vertical, 4)
 
-                LabeledContent("Preset") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(96), spacing: 6), count: 3), spacing: 6) {
-                        ForEach(Self.presets, id: \.0) { name, g in
-                            if state.draft.eq == g {
-                                Button { } label: { Text(name).frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
-                            } else {
-                                Button { state.draft.eq = g } label: { Text(name).frame(maxWidth: .infinity) }.buttonStyle(.bordered)
-                            }
-                        }
-                    }
+                Picker("Preset", selection: Binding(get: { EQPresets.name(for: state.draft.eq) ?? "Custom" },
+                                                    set: { n in if let g = EQPresets.all.first(where: { $0.name == n })?.gains { state.draft.eq = g } })) {
+                    Text("Custom").tag("Custom")
+                    Divider()
+                    ForEach(EQPresets.all, id: \.name) { Text($0.name).tag($0.name) }
                 }
+                .frame(maxWidth: 260, alignment: .trailing)
             }
         }
         .formStyle(.grouped)

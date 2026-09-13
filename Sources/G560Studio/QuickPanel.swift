@@ -42,10 +42,22 @@ struct QuickPanel: View {
             SliderMenuRow(title: "서브우퍼", value: Binding(get: { Double(state.draft.woofer) }, set: { state.draft.woofer = Int($0.rounded()) }),
                           range: 0...100, display: "\(state.draft.woofer)") { state.quickSet(woofer: state.draft.woofer) }
 
+            HStack(spacing: 10) {
+                Text("EQ").frame(width: 56, alignment: .leading)
+                Picker("", selection: Binding(get: { EQPresets.name(for: state.draft.eq) ?? "Custom" },
+                                              set: { n in if let g = EQPresets.all.first(where: { $0.name == n })?.gains { state.quickSet(eq: g) } })) {
+                    Text("Custom").tag("Custom")
+                    Divider()
+                    ForEach(EQPresets.all, id: \.name) { Text($0.name).tag($0.name) }
+                }.labelsHidden()
+            }
+            .padding(.horizontal, 15).padding(.vertical, 4)
+
             MenuSeparator()
 
             LoginItemRow()
             MenuRow(title: "설정…", shortcut: "⌘,") {
+                NSApp.keyWindow?.close()          // 메뉴바 패널 닫기
                 openWindow(id: "settings")
                 NSApp.activate(ignoringOtherApps: true)
             }

@@ -156,3 +156,13 @@ XCTest 기본, 프레임워크 추가 없음.
 ## 빌드
 
 Xcode.app 사용 (`sudo xcode-select -s /Applications/Xcode.app`). SwiftPM, macOS 14.2+ (Process Tap). ad-hoc 서명.
+
+## Phase 2 추가 (2026-09-13 승인) — 스케줄 엔진
+
+- 규칙 `ScheduleRule { id, hour, minute, weekdays: Set<Int> (1=일…7=토), profileID, enabled }`
+- `ProfileStore`에 `schedule: [ScheduleRule]`, `scheduleEnabled: Bool` 추가 (같은 profiles.json)
+- 엔진(`Scheduler`): 1분 타이머. `activeRule(at:)` = 지난 7일 범위에서 현재 시각 이전에 가장 최근 발동한 규칙. 이 규칙이 바뀔 때만 프로필 적용 (전환 시점 발동).
+- 앱 시작 시 즉시 한 번 평가 → 밤에 켜도 야간 프로필이 잡힘.
+- 수동 전환은 다음 규칙 시각까지 유지; 다음 규칙이 오면 스케줄이 덮어씀 (A안).
+- UI: 설정 창 "스케줄" 탭 — 켜기 토글, 규칙 행(시각 DatePicker / 요일 토글 7개 / 프로필 Picker / 삭제), 추가 버튼. 규칙 편집도 동기화 없이 즉시 저장 (장치 쓰기가 아니므로).
+- 테스트: `activeRule(at:)` 순수 함수 — 요일 경계, 자정 넘김, 비활성 규칙 무시.

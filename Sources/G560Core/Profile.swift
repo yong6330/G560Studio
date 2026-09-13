@@ -28,9 +28,14 @@ public struct Profile: Codable, Identifiable, Equatable, Sendable, Hashable {
 public struct ProfileStore {
     public var profiles: [Profile]
     public var activeID: UUID?
+    public var schedule: [ScheduleRule] = []
+    public var scheduleEnabled = false
     let url: URL
 
-    private struct File: Codable { var profiles: [Profile]; var activeID: UUID? }
+    private struct File: Codable {
+        var profiles: [Profile]; var activeID: UUID?
+        var schedule: [ScheduleRule]?; var scheduleEnabled: Bool?
+    }
 
     public static var defaultURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -45,6 +50,8 @@ public struct ProfileStore {
            let f = try? JSONDecoder().decode(File.self, from: data), !f.profiles.isEmpty {
             profiles = f.profiles
             activeID = f.activeID ?? f.profiles[0].id
+            schedule = f.schedule ?? []
+            scheduleEnabled = f.scheduleEnabled ?? false
         } else {
             let p = Profile.makeDefault(name: "기본")
             profiles = [p]
@@ -57,6 +64,6 @@ public struct ProfileStore {
     public func save() throws {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try enc.encode(File(profiles: profiles, activeID: activeID)).write(to: url, options: .atomic)
+        try enc.encode(File(profiles: profiles, activeID: activeID, schedule: schedule, scheduleEnabled: scheduleEnabled)).write(to: url, options: .atomic)
     }
 }

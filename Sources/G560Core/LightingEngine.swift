@@ -29,6 +29,7 @@ public final class LightingEngine: @unchecked Sendable {
     /// 재연결·프로필 교체 시 전 존 강제 재전송
     public func resend() {
         queue.async {
+            guard self.enabled else { return }
             self.lastFrame = ZoneColors(all: RGB(1, 1, 1))
             self.push(self.config.frame(t: Date().timeIntervalSince(self.t0), audio: self.audio, envelope: &self.envelope))
         }
