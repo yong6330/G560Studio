@@ -1,7 +1,7 @@
 import Foundation
 import G560Core
 
-let usage = "g560ctl status | led <zone|all> <RRGGBB> | woofer <0-100> | eq <g0> ... <g9> | restore | levels"
+let usage = "g560ctl status | led <zone|all> <RRGGBB> | woofer <0-100> | eq <g0> ... <g9> | restore | levels | demo | cycle"
 let args = Array(CommandLine.arguments.dropFirst())
 guard let cmd = args.first else { print(usage); exit(1) }
 
@@ -27,6 +27,18 @@ dev.onConnect = {
             for z in zones { try dev.setZone(z, rgb) }
         case "woofer": try dev.setWoofer(Int(args[1])!); print("woofer:", try dev.woofer())
         case "eq": try dev.setEqualizer(args.dropFirst().map { Int($0)! }); print("eq:", try dev.equalizer())
+        case "demo":   // 10초 사운드 반응 데모 (오디오 권한 없으면 어두운 파랑으로 고정)
+            let engine = LightingEngine(device: dev)
+            engine.config = .soundReactive(ZoneColors(all: RGB(0, 120, 255)), sensitivity: 1.5, splitBands: true)
+            let tap = AudioTap(); tap.onLevels = { engine.update(audio: $0) }
+            try tap.start(); engine.start()
+            Thread.sleep(forTimeInterval: 10)
+            engine.enabled = false; Thread.sleep(forTimeInterval: 0.2); tap.stop()
+        case "cycle":  // 5초 컬러 사이클 (오디오 불필요) — 엔진/전송 속도 확인용
+            let engine = LightingEngine(device: dev)
+            engine.config = .colorCycle(speed: 0.3); engine.start()
+            Thread.sleep(forTimeInterval: 5)
+            engine.enabled = false; Thread.sleep(forTimeInterval: 0.2)
         case "restore":   // factory-defaults.json 기준 (protocol.md). LED는 휘발성이라 복원 불필요.
             try dev.setWoofer(G560.factoryWoofer); try dev.setEqualizer(G560.factoryEQ)
             print("restored: woofer", try dev.woofer(), "eq", try dev.equalizer())
@@ -36,5 +48,5 @@ dev.onConnect = {
     done.signal()
 }
 dev.start()
-if done.wait(timeout: .now() + 3) == .timedOut { print("G560 not found"); exitCode = 3 }
+if done.wait(timeout: .now() + 15) == .timedOut { print("G560 not found"); exitCode = 3 }
 exit(exitCode)

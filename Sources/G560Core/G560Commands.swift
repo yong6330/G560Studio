@@ -19,8 +19,9 @@ public enum G560 {
 /// docs/protocol.md 에서 재전송 검증된 명령만.
 public extension G560Device {
     /// 0x8070 fn3 setZoneEffect(zone, fixed, rgb). 휘발성.
+    /// 응답을 기다린다 — 연속 전송하면 USB 파이프가 stall 나므로(실측) 간격이 필요.
     func setZone(_ zone: Int, _ c: RGB) throws {
-        try send(feature: 0x8070, fn: 3, params: [UInt8(zone), 0x01, c.r, c.g, c.b, 0x02])
+        _ = try call(feature: 0x8070, fn: 3, params: [UInt8(zone), 0x01, c.r, c.g, c.b, 0x02])
     }
     /// 0x8305 fn0
     func woofer() throws -> Int { Int(try call(feature: 0x8305, fn: 0, params: []).params[0]) }
