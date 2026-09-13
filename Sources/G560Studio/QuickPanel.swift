@@ -1,5 +1,6 @@
 import SwiftUI
 import G560Core
+import ServiceManagement
 
 /// 메뉴바 빠른 패널 — Tailscale 스타일: 헤더(이름/상태 + 토글), 메뉴 행, 구분선, 단축키.
 struct QuickPanel: View {
@@ -43,6 +44,7 @@ struct QuickPanel: View {
 
             MenuSeparator()
 
+            LoginItemRow()
             MenuRow(title: "설정…", shortcut: "⌘,") {
                 openWindow(id: "settings")
                 NSApp.activate(ignoringOtherApps: true)
@@ -100,6 +102,22 @@ struct SliderMenuRow: View {
             Text(title).frame(width: 56, alignment: .leading)
             Slider(value: $value, in: range) { if !$0 { onCommit() } }
             Text(display).monospacedDigit().foregroundStyle(.secondary).frame(width: 28, alignment: .trailing)
+        }
+        .padding(.horizontal, 15).padding(.vertical, 4)
+    }
+}
+
+/// 로그인 시 시작 (SMAppService). 번들이 /Applications 에 있어야 안정적.
+struct LoginItemRow: View {
+    @State private var enabled = SMAppService.mainApp.status == .enabled
+    var body: some View {
+        HStack {
+            Text("로그인 시 시작")
+            Spacer()
+            Toggle("", isOn: Binding(get: { enabled }, set: { on in
+                do { try on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister(); enabled = on }
+                catch { enabled = SMAppService.mainApp.status == .enabled }
+            })).toggleStyle(.switch).controlSize(.mini).labelsHidden()
         }
         .padding(.horizontal, 15).padding(.vertical, 4)
     }

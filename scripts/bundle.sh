@@ -12,3 +12,4 @@ cp Sources/G560Studio/Info.plist "$APP/Contents/"
 [ -d Assets ] && cp Assets/* "$APP/Contents/Resources/" 2>/dev/null || true
 codesign --force --sign - "$APP"
 echo "built $APP"
+echo "설치: cp -R $APP /Applications/   (로그인 시 시작은 /Applications 에서만 안정적)"
