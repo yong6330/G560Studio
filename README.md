@@ -41,3 +41,7 @@ tools/.venv/bin/python tools/g560probe.py restore   # Python 쪽 복구 (factory
 - `Sources/G560Studio` — SwiftUI 메뉴바 앱
 - `Sources/g560ctl` — CLI
 - `tools/` — Phase 0 프로토콜 캡처 스크립트
+
+## 라이선스
+코드는 [MIT](LICENSE). `Assets/`의 로고·제품 사진은 Logitech 소유이며 이 라이선스에 포함되지 않습니다 (개인 사용 목적으로만 포함).
+이 프로젝트는 Logitech과 무관한 개인 프로젝트입니다.
