@@ -9,5 +9,6 @@ APP=build/G560Studio.app
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp ".build/$CFG/G560Studio" "$APP/Contents/MacOS/"
 cp Sources/G560Studio/Info.plist "$APP/Contents/"
+[ -d Assets ] && cp Assets/* "$APP/Contents/Resources/" 2>/dev/null || true
 codesign --force --sign - "$APP"
 echo "built $APP"

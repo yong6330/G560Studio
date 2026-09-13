@@ -10,9 +10,9 @@ public struct Profile: Codable, Identifiable, Equatable, Sendable, Hashable {
 
     public static func makeDefault(name: String) -> Profile {
         Profile(id: UUID(), name: name,
-                lighting: .soundReactive(ZoneColors(all: RGB(255, 255, 255)), sensitivity: 1.5, splitBands: false),
-                volume: OutputVolume.get() ?? 0.3,   // 현재 시스템 볼륨 그대로 — 갑자기 커지지 않게
-                woofer: G560.factoryWoofer, eq: G560.factoryEQ)
+                lighting: .soundReactive(.rainbow(speed: 0.05), sensitivity: 1.5, split: .none),
+                volume: 0.2, woofer: 20,   // ponytail: 개발 중 고정(아파트). 배포 전 volume=OutputVolume.get(), woofer=factoryWoofer 로
+                eq: G560.factoryEQ)
     }
 }
 

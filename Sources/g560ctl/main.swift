@@ -34,14 +34,14 @@ dev.onConnect = {
         case "eq": try dev.setEqualizer(args.dropFirst().map { Int($0)! }); print("eq:", try dev.equalizer())
         case "demo":   // 10초 사운드 반응 데모 (오디오 권한 없으면 어두운 파랑으로 고정)
             let engine = LightingEngine(device: dev)
-            engine.config = .soundReactive(ZoneColors(all: RGB(0, 120, 255)), sensitivity: 1.5, splitBands: true)
+            engine.config = .soundReactive(.custom(ZoneColors(all: RGB(0, 120, 255))), sensitivity: 1.5, split: .bassRear)
             let tap = AudioTap(); tap.onLevels = { engine.update(audio: $0) }
             try tap.start(); engine.start()
             Thread.sleep(forTimeInterval: 10)
             engine.enabled = false; Thread.sleep(forTimeInterval: 0.2); tap.stop()
         case "cycle":  // 5초 컬러 사이클 (오디오 불필요) — 엔진/전송 속도 확인용
             let engine = LightingEngine(device: dev)
-            engine.config = .colorCycle(speed: 0.3); engine.start()
+            engine.config = .fixed(.rainbow(speed: 0.3)); engine.start()
             Thread.sleep(forTimeInterval: 5)
             engine.enabled = false; Thread.sleep(forTimeInterval: 0.2)
         case "restore":   // factory-defaults.json 기준 (protocol.md). LED는 휘발성이라 복원 불필요.

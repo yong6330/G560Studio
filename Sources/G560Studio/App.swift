@@ -12,6 +12,12 @@ struct G560StudioApp: App {
             Image(nsImage: MenuBarIcon.render(levels: state.levels, zones: state.zoneColors, connected: state.connected))
         }
         .menuBarExtraStyle(.window)
-        Settings { SettingsView().environment(state) }
+
+        // Settings 씬 대신 일반 Window: LSUIElement 앱에서 확실히 앞으로 가져오기 위해
+        Window("G560Studio 설정", id: "settings") {
+            SettingsView().environment(state)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 }

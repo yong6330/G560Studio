@@ -7,13 +7,13 @@ final class ProfileTests: XCTestCase {
     func testFreshStoreHasDefaultProfileActive() {
         let s = ProfileStore(url: tmp())
         XCTAssertEqual(s.profiles.count, 1); XCTAssertEqual(s.activeID, s.profiles[0].id)
-        XCTAssertEqual(s.active?.woofer, 40); XCTAssertEqual(s.active?.eq, [Int](repeating: 0, count: 10))
+        XCTAssertEqual(s.active?.woofer, 20); XCTAssertEqual(s.active?.eq, [Int](repeating: 0, count: 10))
     }
     func testRoundTrip() throws {
         let url = tmp()
         var s = ProfileStore(url: url)
         var p = Profile.makeDefault(name: "밤")
-        p.woofer = 10; p.lighting = .breathing(ZoneColors(zones: [RGB(1, 2, 3), .off, .off, RGB(9, 9, 9)]), period: 4)
+        p.woofer = 10; p.lighting = .breathing(.custom(ZoneColors(zones: [RGB(1, 2, 3), .off, .off, RGB(9, 9, 9)])), period: 4)
         s.profiles.append(p); s.activeID = p.id
         try s.save()
         let t = ProfileStore(url: url)

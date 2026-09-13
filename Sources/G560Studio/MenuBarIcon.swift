@@ -12,7 +12,7 @@ enum MenuBarIcon {
         let img = NSImage(size: size, flipped: false) { rect in
             let mid = rect.midY
             let maxAmp = rect.height / 2 - 1
-            let level = CGFloat(min(1, levels.rms * 2.4))
+            let level = CGFloat(min(1, levels.rms * 3.6))   // 1.5배 민감
             // 존 순서 0=좌앞,1=우앞,2=좌뒤,3=우뒤 → 아이콘 왼쪽부터 좌뒤, 좌앞, 우앞, 우뒤
             let ordered = [zones.zones[2], zones.zones[0], zones.zones[1], zones.zones[3]]
             let dark = !connected || zones.zones.allSatisfy { $0 == .off }
