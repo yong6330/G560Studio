@@ -1,7 +1,7 @@
 import Foundation
 import G560Core
 
-let usage = "g560ctl status | led <zone|all> <RRGGBB> | woofer <0-100> | eq <g0> ... <g9> | restore | levels | demo | cycle"
+let usage = "g560ctl status | led <zone|all> <RRGGBB> | woofer <0-100> | eq <g0> ... <g9> | restore | levels | demo | cycle | volume <0-100>"
 let args = Array(CommandLine.arguments.dropFirst())
 guard let cmd = args.first else { print(usage); exit(1) }
 
@@ -10,6 +10,11 @@ if cmd == "levels" {   // 5초간 오디오 레벨 출력 (장치 불필요)
     tap.onLevels = { l in print(String(format: "rms %.2f peak %.2f low %.2f mid %.2f high %.2f", l.rms, l.peak, l.low, l.mid, l.high)) }
     do { try tap.start() } catch { print("tap error:", error); exit(2) }
     Thread.sleep(forTimeInterval: 5); tap.stop(); exit(0)
+}
+
+if cmd == "volume" {   // CoreAudio (장치 HID 불필요)
+    do { try OutputVolume.set(Double(args[1])! / 100) } catch { print("error:", error); exit(2) }
+    print("volume:", OutputVolume.get().map { Int(($0 * 100).rounded()) } ?? -1); exit(0)
 }
 
 let dev = G560Device()
