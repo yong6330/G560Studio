@@ -7,6 +7,9 @@ struct ProfilesTab: View {
     @Environment(AppState.self) var state
     @State private var confirmRestore = false
     @State private var showPicker = false
+    @State private var showExport = false
+    @State private var showImport = false
+    @State private var ioMessage: String?
 
     var runningApps: [NSRunningApplication] {
         NSWorkspace.shared.runningApplications
@@ -75,6 +78,15 @@ struct ProfilesTab: View {
                 }
             }
 
+            Section("백업") {
+                LabeledContent("프로필과 규칙") {
+                    HStack {
+                        Button("내보내기…") { showExport = true }
+                        Button("가져오기…") { showImport = true }
+                    }
+                }
+                if let m = ioMessage { Text(m).font(.caption).foregroundStyle(.secondary) }
+            }
             Section("장치") {
                 LabeledContent("공장 초기값") {
                     Button("초기화…", role: .destructive) { confirmRestore = true }
@@ -85,6 +97,20 @@ struct ProfilesTab: View {
             }
         }
         .formStyle(.grouped)
+        .fileExporter(isPresented: $showExport, document: JSONDocument(data: (try? state.store.exportData()) ?? Data()),
+                      contentType: .json, defaultFilename: "G560Studio-profiles") { r in
+            ioMessage = (try? r.get()) != nil ? "내보냈습니다." : "내보내기 실패"
+        }
+        .fileImporter(isPresented: $showImport, allowedContentTypes: [.json]) { r in
+            do {
+                let url = try r.get()
+                guard url.startAccessingSecurityScopedResource() else { throw CocoaError(.fileReadNoPermission) }
+                defer { url.stopAccessingSecurityScopedResource() }
+                try state.store.importData(try Data(contentsOf: url))
+                state.discardChanges()
+                ioMessage = "가져왔습니다: 프로필 \(state.store.profiles.count)개"
+            } catch { ioMessage = "가져오기 실패: \(error.localizedDescription)" }
+        }
     }
 
     func scheduleBinding(_ id: UUID) -> Binding<ScheduleRule> {
@@ -156,6 +182,7 @@ struct ProfilePeekButton: View {
                     Text(profile.name).font(.headline)
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                         GridRow { Text("조명").foregroundStyle(.secondary); Text(lightingText) }
+                        GridRow { Text("밝기").foregroundStyle(.secondary); Text("\(profile.brightness)") }
                         GridRow { Text("볼륨").foregroundStyle(.secondary); Text("\(Int((profile.volume * 100).rounded()))") }
                         GridRow { Text("서브우퍼").foregroundStyle(.secondary); Text("\(profile.woofer)") }
                         GridRow { Text("EQ").foregroundStyle(.secondary); Text(EQPresets.name(for: profile.eq) ?? "Custom") }
@@ -165,4 +192,14 @@ struct ProfilePeekButton: View {
                 .frame(minWidth: 300, alignment: .leading)
             }
     }
+}
+
+
+/// fileExporter용 JSON 문서
+struct JSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }

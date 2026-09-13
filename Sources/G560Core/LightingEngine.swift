@@ -4,6 +4,8 @@ import Foundation
 public final class LightingEngine: @unchecked Sendable {
     public var config: LightingConfig = .off { didSet { queue.async { self.syncScreen() } } }
     public let screen = ScreenSampler()
+    /// 소프트웨어 밝기 0…100. 장치의 0x8040은 실질적으로 on/off라(실측) 프레임 단계에서 스케일한다.
+    public var brightness = 100
     public var enabled = true { didSet { if !enabled { blackout() } } }
     public private(set) var lastFrame: ZoneColors = .off
     private let device: G560Device
@@ -48,7 +50,9 @@ public final class LightingEngine: @unchecked Sendable {
         } else { screen.stop() }
     }
 
-    private func push(_ f: ZoneColors) {
+    private func push(_ frame: ZoneColors) {
+        let k = Float(max(0, min(100, brightness))) / 100
+        let f = k >= 1 ? frame : ZoneColors(zones: frame.zones.map { $0.scaled(k) })
         for z in 0..<G560.zoneCount where f.zones[z] != lastFrame.zones[z] {
             do { try device.setZone(z, f.zones[z]) } catch { FileHandle.standardError.write("setZone \(z): \(error)\n".data(using: .utf8)!) }
         }

@@ -36,6 +36,18 @@ struct QuickPanel: View {
 
             MenuSeparator()
 
+            // 조명 효과 (현재 색/파라미터 유지하며 효과만 전환)
+            HStack(spacing: 10) {
+                Text("조명").frame(width: 56, alignment: .leading)
+                Picker("", selection: Binding(get: { LightingQuick.effect(of: state.applied.lighting) },
+                                              set: { state.quickSetLighting(LightingQuick.config(for: $0, from: state.applied.lighting)) })) {
+                    ForEach(LightingQuick.Effect.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.labelsHidden()
+            }
+            .padding(.horizontal, 15).padding(.vertical, 4)
+
+            MenuSeparator()
+
             // 출력 (슬라이더 행)
             SliderMenuRow(title: "볼륨", value: Binding(get: { state.draft.volume }, set: { state.draft.volume = $0 }),
                           range: 0...1, display: "\(Int((state.draft.volume * 100).rounded()))") { state.quickSet(volume: state.draft.volume) }
@@ -132,5 +144,35 @@ struct LoginItemRow: View {
             })).toggleStyle(.switch).controlSize(.mini).labelsHidden()
         }
         .padding(.horizontal, 15).padding(.vertical, 4)
+    }
+}
+
+
+/// 빠른 패널용 효과 전환: 팔레트/파라미터는 현재 설정에서 물려받는다.
+enum LightingQuick {
+    enum Effect: String, CaseIterable { case off = "끄기", fixed = "고정", breathing = "브리딩", sound = "사운드 반응", screen = "화면 샘플러", dynamic = "다이나믹 샘플러" }
+
+    static func effect(of c: LightingConfig) -> Effect {
+        switch c {
+        case .off: .off
+        case .fixed: .fixed
+        case .breathing: .breathing
+        case .soundReactive: .sound
+        case .screenSampler(let o): o.audio ? .dynamic : .screen
+        }
+    }
+    static func config(for e: Effect, from c: LightingConfig) -> LightingConfig {
+        let palette: Palette
+        switch c { case .fixed(let p), .breathing(let p, _), .soundReactive(let p, _, _): palette = p; default: palette = .rainbow(speed: 0.05) }
+        var opts = ScreenOptions()
+        if case .screenSampler(let o) = c { opts = o }
+        switch e {
+        case .off: return .off
+        case .fixed: return .fixed(palette)
+        case .breathing: return .breathing(palette, period: 3)
+        case .sound: return .soundReactive(palette, sensitivity: 0, split: .none)
+        case .screen: opts.audio = false; return .screenSampler(opts)
+        case .dynamic: opts.audio = true; return .screenSampler(opts)
+        }
     }
 }

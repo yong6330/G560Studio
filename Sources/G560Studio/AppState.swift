@@ -117,12 +117,14 @@ final class AppState {
 
     /// 장치/시스템에 실제로 쓴다. EQ는 EEPROM이라 바뀐 경우에만.
     private func push(_ p: Profile, eq: Bool) {
+        engine.brightness = p.brightness
         engine.config = p.lighting
         engine.resend()
         try? OutputVolume.set(p.volume)
         guard connected else { return }
         do {
             try device.setWoofer(p.woofer)
+            try device.setBrightness(p.brightness == 0 ? 0 : 100)   // 장치 밝기는 사실상 on/off — 단계는 엔진이 처리
             if eq { try device.setEqualizer(p.eq) }
             deviceError = nil
         } catch { deviceError = "장치 명령 실패: \(error)" }
@@ -170,7 +172,14 @@ final class AppState {
         if store.scheduleEnabled, let f = lastFiring { fire(f.rule, force: true) }
     }
 
-    /// 빠른 패널 슬라이더: 즉시 반영 (조명/EQ는 건드리지 않음).
+    /// 빠른 패널: 조명 설정 즉시 반영 + 활성 프로필에 저장.
+    func quickSetLighting(_ l: LightingConfig) {
+        draft.lighting = l; applied.lighting = l
+        engine.config = l; engine.resend()
+        persistActive(applied)
+    }
+
+    /// 빠른 패널 슬라이더: 즉시 반영 (EQ는 프리셋 선택 시에만).
     func quickSet(volume: Double? = nil, woofer: Int? = nil, eq: [Int]? = nil) {
         if let g = eq, connected {
             draft.eq = g; applied.eq = g

@@ -14,6 +14,7 @@ public enum G560 {
     public static let wooferRange = 0...100
     public static let factoryWoofer = 40
     public static let factoryEQ = [Int](repeating: 0, count: eqBands)
+    public static let factoryBrightness = 100
 }
 
 /// docs/protocol.md 에서 재전송 검증된 명령만.
@@ -28,6 +29,12 @@ public extension G560Device {
     /// 0x8305 fn1
     func setWoofer(_ level: Int) throws {
         _ = try call(feature: 0x8305, fn: 1, params: [UInt8(level.clamped(to: G560.wooferRange))])
+    }
+    /// 0x8040 fn1
+    func brightness() throws -> Int { Int(try call(feature: 0x8040, fn: 1, params: []).params[1]) }
+    /// 0x8040 fn2 [00 xx]
+    func setBrightness(_ v: Int) throws {
+        _ = try call(feature: 0x8040, fn: 2, params: [0, UInt8(v.clamped(to: 0...100))])
     }
     /// 0x8310 fn2
     func equalizer() throws -> [Int] {

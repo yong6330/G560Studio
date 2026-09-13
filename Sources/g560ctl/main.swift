@@ -31,7 +31,7 @@ dev.onConnect = {
     do {
         switch cmd {
         case "status":
-            print("woofer:", try dev.woofer()); print("eq:", try dev.equalizer())
+            print("woofer:", try dev.woofer()); print("eq:", try dev.equalizer()); print("brightness:", try dev.brightness())
         case "led":
             let c = UInt32(args[2], radix: 16)!
             let rgb = RGB(UInt8(c >> 16), UInt8((c >> 8) & 0xFF), UInt8(c & 0xFF))
@@ -52,7 +52,7 @@ dev.onConnect = {
             Thread.sleep(forTimeInterval: 5)
             engine.enabled = false; Thread.sleep(forTimeInterval: 0.2)
         case "restore":   // factory-defaults.json 기준 (protocol.md). LED는 휘발성이라 복원 불필요.
-            try dev.setWoofer(G560.factoryWoofer); try dev.setEqualizer(G560.factoryEQ)
+            try dev.setWoofer(G560.factoryWoofer); try dev.setEqualizer(G560.factoryEQ); try dev.setBrightness(G560.factoryBrightness)
             print("restored: woofer", try dev.woofer(), "eq", try dev.equalizer())
         default: print(usage); exitCode = 1
         }

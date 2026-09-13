@@ -64,6 +64,8 @@ struct LightingTab: View {
             Section("LightSync") {
                 Toggle("조명 켜기", isOn: Binding(get: { isOn }, set: { rebuild(on: $0) }))
                 if isOn {
+                    SliderRow(label: "밝기", value: Binding(get: { Double(state.draft.brightness) }, set: { state.draft.brightness = Int($0.rounded()) }),
+                              range: 0...100)
                     Picker("효과", selection: Binding(get: { effect }, set: { rebuild(effect: $0) })) {
                         ForEach(Effect.allCases, id: \.self) { Text($0.rawValue) }
                     }

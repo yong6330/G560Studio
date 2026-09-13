@@ -14,7 +14,7 @@ public final class G560Device: @unchecked Sendable {
     public private(set) var isConnected = false
 
     static let vendorID = 0x046D, productID = 0x0A78
-    static let knownFeatures: [UInt16] = [0x8070, 0x8305, 0x8310]
+    static let knownFeatures: [UInt16] = [0x8070, 0x8305, 0x8310, 0x8040]
 
     private let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     private var device: IOHIDDevice?
