@@ -7,9 +7,10 @@ CFG=${1:-debug}
 swift build -c "$CFG" --product G560Studio
 APP=build/G560Studio.app
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp ".build/$CFG/G560Studio" "$APP/Contents/MacOS/"
-cp Sources/G560Studio/Info.plist "$APP/Contents/"
-[ -d Assets ] && cp Assets/* "$APP/Contents/Resources/" 2>/dev/null || true
+# 확장 속성(com.apple.provenance 등)이 따라오면 codesign이 거부하므로 ditto --noextattr 로 복사
+ditto --noextattr --norsrc ".build/$CFG/G560Studio" "$APP/Contents/MacOS/G560Studio"
+ditto --noextattr --norsrc Sources/G560Studio/Info.plist "$APP/Contents/Info.plist"
+for f in Assets/*; do [ -f "$f" ] && ditto --noextattr --norsrc "$f" "$APP/Contents/Resources/$(basename "$f")"; done
 # 고정 identity로 서명해야 TCC 권한(오디오/화면 기록)이 빌드 후에도 유지된다. 없으면 ad-hoc.
 xattr -cr "$APP"   # 확장 속성이 있으면 codesign이 거부한다
 IDENTITY=${CODESIGN_IDENTITY:-"G560Studio Dev"}

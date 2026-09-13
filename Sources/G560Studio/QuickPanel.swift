@@ -12,7 +12,10 @@ struct QuickPanel: View {
             // 헤더
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("G560Studio").font(.system(size: 15, weight: .semibold))
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("G560Studio").font(.system(size: 15, weight: .semibold))
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "").font(.caption).foregroundStyle(.tertiary)
+                    }
                     Text(state.connected ? "Logitech G560 연결됨" : "Logitech G560 연결 안 됨")
                         .font(.callout).foregroundStyle(state.connected ? .secondary : Color.red)
                 }

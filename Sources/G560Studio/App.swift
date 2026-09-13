@@ -17,7 +17,7 @@ struct G560StudioApp: App {
         Window("G560Studio 설정", id: "settings") {
             SettingsView().environment(state)
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
         .defaultPosition(.center)
     }
 }
