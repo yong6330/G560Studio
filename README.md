@@ -5,11 +5,23 @@
 
 macOS용 G HUB에는 소리에 반응하는 LightSync가 없고, 서브우퍼를 줄이려면 G HUB가 있어야 합니다. 둘 다 되게 만들었습니다 — 그리고 G HUB에 없는 것들도: 화면 색을 따라가는 조명, 화면 색 + 소리 밝기를 합친 **다이나믹 샘플러**, 하드웨어 EQ 프리셋, 시간·앱 기준 자동 프로필 전환.
 
-## 요구 사항
+## 요구 사항 · 사양
 
-- macOS 14.2 이상 (Core Audio Process Tap)
-- Logitech G560 (USB 연결)
-- **G HUB는 설치되어 있으면 안 됩니다.** 같은 장치를 잡고 있어서 서로 충돌합니다.
+| 항목 | 내용 |
+|---|---|
+| 운영체제 | macOS 14.2 (Sonoma) 이상 |
+| 아키텍처 | Apple Silicon (arm64) |
+| 하드웨어 | Logitech G560 (USB 연결) |
+| 동시 실행 | **G HUB가 설치되어 있으면 안 됩니다** — 같은 장치를 잡아 충돌합니다 |
+| 권한 | 시스템 오디오 녹음 (필수), 화면 기록 (화면·다이나믹 샘플러 사용 시) |
+| 설치 용량 | 약 2.6 MB (다운로드 zip 약 1 MB) |
+| 메모리 | 약 80 MB (화면 샘플러 사용 시 최대 ~110 MB) |
+| CPU (M3 Pro 1코어 기준) | 유휴·조명 끔 약 4% / 사운드 반응 재생 중 약 8% / 다이나믹 샘플러 약 18% |
+| 의존성 | 없음 (외부 라이브러리·런타임 미사용, 순수 Swift + 시스템 프레임워크) |
+| 조명 갱신 | 24 Hz, 변화가 있는 존만 전송 |
+| 배포 | 자체 서명 (Developer ID 공증 없음) · 오픈소스 |
+
+CPU·메모리는 M3 Pro 실측 기준이며 재생 콘텐츠와 디스플레이 수에 따라 달라집니다.
 
 ## 설치
 
@@ -159,4 +171,9 @@ tools/.venv/bin/python tools/g560probe.py restore   # Python 쪽 복구 (factory
 
 `Assets/`의 로고와 제품 사진은 Logitech 소유이며, 비상업적 개인 활용 목적으로만 포함되어 있습니다. 이 프로젝트는 Logitech과 무관합니다.
 
-<p align="center"><img src="docs/img/onestudio.png" width="208" alt="ONESTUDIO"></p>
+## 개발자
+
+- 기획 / 총괄 — 용석희
+- 개발 — 클로드 코드
+
+<p align="center"><img src="docs/img/onestudio.png" width="232" alt="ONESTUDIO — The one studio, made for you."></p>
