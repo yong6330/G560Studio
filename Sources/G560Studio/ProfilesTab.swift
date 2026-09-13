@@ -39,12 +39,11 @@ struct ProfilesTab: View {
                 }
             }
 
-            Section("자동 전환") {
+            Section("시간 규칙") {
                 Toggle("시간 규칙 사용", isOn: $state.draftScheduleEnabled)
-                Toggle("앱 규칙 사용", isOn: $state.draftAppRulesEnabled)
                 if state.store.scheduleEnabled, let r = Schedule.activeRule(state.store.schedule, at: Date()),
                    let p = state.store.profiles.first(where: { $0.id == r.profileID }) {
-                    LabeledContent("적용 중인 시간 규칙") {
+                    LabeledContent("적용 중") {
                         let from = state.store.profiles.first { $0.id == r.fromProfileID }?.name ?? "—"
                         Text("\(String(format: "%02d:%02d", r.hour, r.minute))   \(from) → \(p.name)").foregroundStyle(.secondary)
                     }
@@ -52,22 +51,27 @@ struct ProfilesTab: View {
                 ForEach(state.draftSchedule) { r in
                     ScheduleRow(rule: scheduleBinding(r.id)) { } onDelete: { state.draftSchedule.removeAll { $0.id == r.id } }
                 }
+                LabeledContent("") {
+                    Button("시간 규칙 추가") {
+                        let pid = state.store.activeID ?? state.store.profiles[0].id
+                        state.draftSchedule.append(ScheduleRule(hour: 22, minute: 0, fromProfileID: pid, profileID: pid))
+                        state.draftScheduleEnabled = true
+                    }
+                }
+            }
+
+            Section("앱 규칙") {
+                Toggle("앱 규칙 사용", isOn: $state.draftAppRulesEnabled)
                 ForEach(state.draftAppRules) { r in
                     AppRuleRow(rule: appBinding(r.id)) { state.draftAppRules.removeAll { $0.id == r.id } }
                 }
                 LabeledContent("") {
-                    Menu("규칙 추가") {
-                        Button("시간 규칙") {
-                            let pid = state.store.activeID ?? state.store.profiles[0].id
-                            state.draftSchedule.append(ScheduleRule(hour: 22, minute: 0, fromProfileID: pid, profileID: pid))
-                            state.draftScheduleEnabled = true
+                    Menu("앱 규칙 추가") {
+                        ForEach(runningApps, id: \.processIdentifier) { app in
+                            Button(app.localizedName ?? app.bundleIdentifier!) { addApp(bundleID: app.bundleIdentifier!, name: app.localizedName ?? app.bundleIdentifier!) }
                         }
-                        Menu("앱 규칙 — 실행 중인 앱") {
-                            ForEach(runningApps, id: \.processIdentifier) { app in
-                                Button(app.localizedName ?? app.bundleIdentifier!) { addApp(bundleID: app.bundleIdentifier!, name: app.localizedName ?? app.bundleIdentifier!) }
-                            }
-                        }
-                        Button("앱 규칙 — 앱 파일 선택…") { showPicker = true }
+                        Divider()
+                        Button("앱 파일 선택…") { showPicker = true }
                     }
                     .fixedSize()
                     .fileImporter(isPresented: $showPicker, allowedContentTypes: [.applicationBundle]) { r in

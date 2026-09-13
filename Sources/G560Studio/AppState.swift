@@ -81,7 +81,8 @@ final class AppState {
         if bundleID == Bundle.main.bundleIdentifier { return }   // 설정 창으로 오는 건 "앱을 벗어남"이 아님
         lastFrontApp = bundleID
         guard store.appRulesEnabled else { return }
-        let match = bundleID.flatMap { b in store.appRules.first { $0.enabled && $0.bundleID == b } }
+        let now = Date()
+        let match = bundleID.flatMap { b in store.appRules.first { $0.bundleID == b && $0.isActive(at: now) } }
         if let m = match {
             if appOverride?.rule == m { return }                     // 같은 규칙, 같은 대상이면 그대로
             let restore = appOverride?.restoreID ?? store.activeID ?? store.profiles[0].id
@@ -95,9 +96,12 @@ final class AppState {
 
     func tickSchedule() {
         let current = Schedule.activeFiring(store.schedule, at: Date())
-        guard current != lastFiring else { return }
-        lastFiring = current
-        if store.scheduleEnabled, let f = current { fire(f.rule, force: false) }
+        if current != lastFiring {
+            lastFiring = current
+            if store.scheduleEnabled, let f = current { fire(f.rule, force: false) }
+        }
+        // 앱 규칙의 시간대 경계도 매분 재평가
+        if store.appRulesEnabled, store.appRules.contains(where: { $0.hasTimeLimit }) { frontAppChanged(lastFrontApp) }
     }
 
     private func fire(_ rule: ScheduleRule, force: Bool) {
