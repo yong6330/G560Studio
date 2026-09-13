@@ -8,6 +8,7 @@ public final class LightingEngine: @unchecked Sendable {
     public var brightness = 100
     public var enabled = true { didSet { if !enabled { blackout() } } }
     public private(set) var lastFrame: ZoneColors = .off
+    private var sent = ZoneColors(all: RGB(1, 1, 1))   // 장치에 실제로 보낸 마지막 색
     private let device: G560Device
     private var audio = AudioLevels.silence
     private var state = LightingState()
@@ -21,7 +22,7 @@ public final class LightingEngine: @unchecked Sendable {
 
     public func start() {
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now(), repeating: .milliseconds(33))   // ponytail: 30Hz 고정, 장치가 버거우면 여기만 조정
+        t.schedule(deadline: .now(), repeating: .milliseconds(42))   // ~24Hz. 존별 HID 왕복이 CPU 대부분이라 여기가 최대 지렛대
         t.setEventHandler { [weak self] in self?.tick() }
         t.resume()
         timer = t
@@ -33,7 +34,7 @@ public final class LightingEngine: @unchecked Sendable {
     public func resend() {
         queue.async {
             guard self.enabled else { return }
-            self.lastFrame = ZoneColors(all: RGB(1, 1, 1))
+            self.lastFrame = ZoneColors(all: RGB(1, 1, 1)); self.sent = ZoneColors(all: RGB(1, 1, 1))
             self.push(self.config.frame(t: Date().timeIntervalSince(self.t0), audio: self.audio, state: &self.state, screen: self.screen.colors))
         }
     }
@@ -53,8 +54,14 @@ public final class LightingEngine: @unchecked Sendable {
     private func push(_ frame: ZoneColors) {
         let k = Float(max(0, min(100, brightness))) / 100
         let f = k >= 1 ? frame : ZoneColors(zones: frame.zones.map { $0.scaled(k) })
-        for z in 0..<G560.zoneCount where f.zones[z] != lastFrame.zones[z] {
-            do { try device.setZone(z, f.zones[z]) } catch { FileHandle.standardError.write("setZone \(z): \(error)\n".data(using: .utf8)!) }
+        for z in 0..<G560.zoneCount {
+            let c = f.zones[z], p = sent.zones[z]
+            // 채널당 4 미만 변화는 눈에 안 띄므로 전송 생략 → 느린 페이드에서 USB 왕복 대폭 감소
+            let d = max(abs(Int(c.r) - Int(p.r)), abs(Int(c.g) - Int(p.g)), abs(Int(c.b) - Int(p.b)))
+            if d >= 4 || (c == .off && p != .off) {
+                do { try device.setZone(z, c); sent.zones[z] = c }
+                catch { FileHandle.standardError.write("setZone \(z): \(error)\n".data(using: .utf8)!) }
+            }
         }
         lastFrame = f
     }
