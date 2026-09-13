@@ -8,7 +8,7 @@ public final class LightingEngine: @unchecked Sendable {
     public private(set) var lastFrame: ZoneColors = .off
     private let device: G560Device
     private var audio = AudioLevels.silence
-    private var envelope: Float = 0
+    private var state = LightingState()
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "lighting")
     private let t0 = Date()
@@ -32,13 +32,13 @@ public final class LightingEngine: @unchecked Sendable {
         queue.async {
             guard self.enabled else { return }
             self.lastFrame = ZoneColors(all: RGB(1, 1, 1))
-            self.push(self.config.frame(t: Date().timeIntervalSince(self.t0), audio: self.audio, envelope: &self.envelope, screen: self.screen.colors))
+            self.push(self.config.frame(t: Date().timeIntervalSince(self.t0), audio: self.audio, state: &self.state, screen: self.screen.colors))
         }
     }
 
     private func tick() {
         guard enabled, device.isConnected else { return }
-        push(config.frame(t: Date().timeIntervalSince(t0), audio: audio, envelope: &envelope, screen: screen.colors))
+        push(config.frame(t: Date().timeIntervalSince(t0), audio: audio, state: &state, screen: screen.colors))
     }
 
     /// 화면 샘플러 모드일 때만 캡처 (권한 팝업도 그때만)

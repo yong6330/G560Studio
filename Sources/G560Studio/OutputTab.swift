@@ -29,6 +29,9 @@ struct VerticalSlider: View {
 
 struct OutputTab: View {
     @Environment(AppState.self) var state
+    @State private var formats = OutputFormat.available()
+    @State private var format = OutputFormat.current()
+    @State private var formatError = false
 
     let eqHeight: CGFloat = 120
 
@@ -39,6 +42,18 @@ struct OutputTab: View {
                 SliderRow(label: "볼륨", value: $state.draft.volume, range: 0...1, format: { "\(Int(($0 * 100).rounded()))" })
                 SliderRow(label: "서브우퍼", value: Binding(get: { Double(state.draft.woofer) }, set: { state.draft.woofer = Int($0.rounded()) }),
                           range: 0...100)
+            }
+            Section("오디오 포맷") {
+                Picker("포맷", selection: Binding(get: { format?.id ?? "" }, set: { id in
+                    if let f = formats.first(where: { $0.id == id }) {
+                        formatError = !OutputFormat.set(f); format = OutputFormat.current()
+                    }
+                })) {
+                    ForEach(formats) { Text($0.label).tag($0.id) }
+                }
+                .disabled(formats.isEmpty)
+                Text(formatError ? "장치가 이 포맷을 거부했습니다." : "오디오 MIDI 설정과 같은 장치 설정입니다. 즉시 적용되며 프로필에 저장되지 않습니다.")
+                    .font(.caption).foregroundStyle(formatError ? .red : .secondary)
             }
             Section("Equalizer") {
                 ZStack(alignment: .topLeading) {
@@ -76,6 +91,7 @@ struct OutputTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { formats = OutputFormat.available(); format = OutputFormat.current() }
     }
 
     func gridLine(_ label: String) -> some View {

@@ -72,8 +72,8 @@ struct LightingTab: View {
                                   range: 1...10, format: { String(format: "%.1f초", $0) })
                     }
                     if case .soundReactive(let p, let s, let b) = cfg {
-                        SliderRow(label: "감도", value: Binding(get: { s }, set: { state.draft.lighting = .soundReactive(p, sensitivity: $0, split: b) }),
-                                  range: 0.5...4, format: { String(format: "%.1f", $0) })
+                        AutoSliderRow(label: "감도", value: Binding(get: { s }, set: { state.draft.lighting = .soundReactive(p, sensitivity: $0, split: b) }),
+                                      range: 0.5...4, manualDefault: 1.5, format: { String(format: "%.1f", $0) })
                         Picker("대역 분리", selection: Binding(get: { b }, set: { state.draft.lighting = .soundReactive(p, sensitivity: s, split: $0) })) {
                             Text("없음").tag(BandSplit.none)
                             Text("저음은 뒤, 고음은 앞").tag(BandSplit.bassRear)
@@ -99,6 +99,10 @@ struct LightingTab: View {
                     }
                     SliderRow(label: "강도", value: Binding(get: { o.boost }, set: { var n = o; n.boost = $0; state.draft.lighting = .screenSampler(n) }),
                               range: 0.5...2, format: { String(format: "%.1f", $0) })
+                    if o.audio {
+                        AutoSliderRow(label: "감도", value: Binding(get: { o.sensitivity }, set: { var n = o; n.sensitivity = $0; state.draft.lighting = .screenSampler(n) }),
+                                      range: 0.5...4, manualDefault: 1.5, format: { String(format: "%.1f", $0) })
+                    }
                     Picker("샘플 위치", selection: Binding(get: { Int((o.inset * 10).rounded()) }, set: { var n = o; n.inset = Double($0) / 10; state.draft.lighting = .screenSampler(n) })) {
                         Text("가장자리").tag(0)
                         ForEach([1, 2, 3, 4], id: \.self) { Text("안쪽 \($0 * 10)%").tag($0) }
@@ -112,8 +116,8 @@ struct LightingTab: View {
                         rebuild(palette: $0 == .rainbow ? .rainbow(speed: lastRainbow) : .custom(lastCustom))
                     })) { ForEach(Source.allCases, id: \.self) { Text($0.rawValue) } }
                     if case .rainbow(let sp) = palette {
-                        SliderRow(label: "색 변화 속도", value: Binding(get: { sp }, set: { rebuild(palette: .rainbow(speed: $0)) }),
-                                  range: 0.02...2, format: { String(format: "%.2f", $0) })
+                        AutoSliderRow(label: "색 변화 속도", value: Binding(get: { sp }, set: { rebuild(palette: .rainbow(speed: $0)) }),
+                                      range: 0.02...2, manualDefault: 0.05, format: { String(format: "%.2f", $0) })
                     } else {
                         ForEach(0..<G560.zoneCount, id: \.self) { z in
                             let c = customColors.zones[z]
@@ -193,5 +197,29 @@ struct EdgeDiagram: View {
             }
         }
         .frame(width: S.width, height: S.height)
+    }
+}
+
+
+/// 슬라이더 + "자동" 토글. 자동이면 값을 0(센티널)으로 저장하고 슬라이더를 비활성화.
+struct AutoSliderRow: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let manualDefault: Double
+    var format: (Double) -> String
+    @State private var lastManual: Double = 0
+
+    var body: some View {
+        LabeledContent(label) {
+            HStack(spacing: 10) {
+                Toggle("자동", isOn: Binding(get: { value <= 0 }, set: { auto in
+                    if auto { lastManual = value; value = 0 } else { value = lastManual > 0 ? lastManual : manualDefault }
+                })).toggleStyle(.checkbox)
+                Slider(value: Binding(get: { value <= 0 ? (lastManual > 0 ? lastManual : manualDefault) : value }, set: { value = $0 }), in: range)
+                    .frame(width: 140).disabled(value <= 0)
+                Text(value <= 0 ? "자동" : format(value)).monospacedDigit().foregroundStyle(.secondary).frame(width: 44, alignment: .trailing)
+            }
+        }
     }
 }

@@ -12,6 +12,7 @@ public final class AudioTap: @unchecked Sendable {
     private var aggID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
     private var sampleRate: Float = 48000
+    private var loggedFirst = false
 
     public init() {}
 
@@ -33,16 +34,14 @@ public final class AudioTap: @unchecked Sendable {
         sampleRate = Float(fmt.mSampleRate)
         let channels = max(1, Int(fmt.mChannelsPerFrame))
 
-        let outUID = try Self.defaultOutputUID()
+        // 탭만 담은 집계 장치. 출력 장치를 서브 장치로 넣으면 생성/해제 때 장치가 재초기화되어 볼륨이 튈 수 있다.
         let agg: [String: Any] = [
             kAudioAggregateDeviceNameKey: "G560Studio Tap",
             kAudioAggregateDeviceUIDKey: "com.onestudio.G560Studio.tap",
-            kAudioAggregateDeviceMainSubDeviceKey: outUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
-            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outUID]],
-            kAudioAggregateDeviceTapListKey: [[kAudioSubTapDriftCompensationKey: true,
+            kAudioAggregateDeviceTapListKey: [[kAudioSubTapDriftCompensationKey: false,
                                               kAudioSubTapUIDKey: desc.uuid.uuidString]],
         ]
         st = AudioHardwareCreateAggregateDevice(agg as CFDictionary, &aggID)
@@ -59,7 +58,9 @@ public final class AudioTap: @unchecked Sendable {
                 for c in 0..<channels { s += p[i * channels + c] }
                 mono[i] = s / Float(channels)
             }
-            self.onLevels?(LevelMeter.measure(mono, sampleRate: self.sampleRate))
+            let l = LevelMeter.measure(mono, sampleRate: self.sampleRate)
+            if !self.loggedFirst, l.rms > 0.001 { self.loggedFirst = true; samplerLog("audio tap first non-silent frame rms=\(l.rms)") }
+            self.onLevels?(l)
         }
         guard st == noErr else { stop(); throw TapError.ioProc(st) }
         st = AudioDeviceStart(aggID, procID)
