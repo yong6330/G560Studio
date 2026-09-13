@@ -13,7 +13,6 @@ struct SettingsView: View {
                 LightingTab().tabItem { Label("조명", systemImage: "lightbulb") }.tag(0)
                 OutputTab().tabItem { Label("출력", systemImage: "speaker.wave.2") }.tag(1)
                 ProfilesTab().tabItem { Label("프로필", systemImage: "person.crop.rectangle.stack") }.tag(2)
-                ScheduleTab().tabItem { Label("스케줄", systemImage: "clock") }.tag(3)
             }
             .alert("적용되지 않은 변경 사항이 있습니다", isPresented: Binding(get: { pendingTab != nil }, set: { if !$0 { pendingTab = nil } })) {
                 Button("동기화") { state.sync(); if let t = pendingTab { tab = t }; pendingTab = nil }

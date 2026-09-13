@@ -166,3 +166,11 @@ Xcode.app 사용 (`sudo xcode-select -s /Applications/Xcode.app`). SwiftPM, macO
 - 수동 전환은 다음 규칙 시각까지 유지; 다음 규칙이 오면 스케줄이 덮어씀 (A안).
 - UI: 설정 창 "스케줄" 탭 — 켜기 토글, 규칙 행(시각 DatePicker / 요일 토글 7개 / 프로필 Picker / 삭제), 추가 버튼. 규칙 편집도 동기화 없이 즉시 저장 (장치 쓰기가 아니므로).
 - 테스트: `activeRule(at:)` 순수 함수 — 요일 경계, 자정 넘김, 비활성 규칙 무시.
+
+## Phase 3 추가 (2026-09-13 승인) — 앱별 자동 전환
+
+- 규칙 `AppRule { id, bundleID, appName, profileID, enabled }`. `ProfileStore`에 `appRules`, `appRulesEnabled`.
+- 트리거: `NSWorkspace.didActivateApplicationNotification`. 앞 앱이 규칙과 일치하면 그 프로필 적용.
+- 다른 앱으로 넘어가면 **이전 프로필로 복귀** (앱 규칙 발동 직전의 활성 프로필). 앱 규칙 발동 중 스케줄이 발동하면 복귀 대상만 갱신.
+- 우선순위: 앱 규칙 > 스케줄.
+- UI: "앱" 탭 — 켜기 토글, 규칙 행(앱 아이콘+이름 / → 프로필 / 삭제), 추가 = 실행 중 앱 목록 메뉴 또는 .app 선택. 초안 → 동기화.

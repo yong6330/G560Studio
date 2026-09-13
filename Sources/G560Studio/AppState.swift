@@ -1,6 +1,7 @@
 import Foundation
 import G560Core
 import Observation
+import AppKit
 
 @Observable @MainActor
 final class AppState {
@@ -15,12 +16,20 @@ final class AppState {
     var zoneColors = ZoneColors.off        // 엔진이 마지막으로 보낸 프레임 (30Hz)
     var applied: Profile                   // 장치에 반영된 값
     var draft: Profile                     // 설정 창에서 편집 중인 값
-    var hasChanges: Bool { draft != applied || draftSchedule != store.schedule || draftScheduleEnabled != store.scheduleEnabled }
+    var hasChanges: Bool {
+        draft != applied || draftSchedule != store.schedule || draftScheduleEnabled != store.scheduleEnabled
+            || draftAppRules != store.appRules || draftAppRulesEnabled != store.appRulesEnabled
+    }
     private var iconTimer: Timer?
     private var scheduleTimer: Timer?
     private var lastFiring: Schedule.Firing?
     var draftSchedule: [ScheduleRule]
     var draftScheduleEnabled: Bool
+    var draftAppRules: [AppRule]
+    var draftAppRulesEnabled: Bool
+    /// 앱 규칙이 발동 중이면 (규칙, 발동 전 활성 프로필 id)
+    private var appOverride: (rule: AppRule, restoreID: UUID)?
+    private var lastFrontApp: String?      // 자기 자신(설정 창) 제외한 마지막 앞 앱
 
     init() {
         engine = LightingEngine(device: device)
@@ -31,6 +40,8 @@ final class AppState {
         draft = p
         draftSchedule = s.schedule
         draftScheduleEnabled = s.scheduleEnabled
+        draftAppRules = s.appRules
+        draftAppRulesEnabled = s.appRulesEnabled
         device.onConnect = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -57,6 +68,29 @@ final class AppState {
         scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tickSchedule() }
         }
+        // 앱별 전환: 앞 앱이 바뀔 때마다
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in
+            let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            Task { @MainActor in self?.frontAppChanged(app?.bundleIdentifier) }
+        }
+        frontAppChanged(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    }
+
+    /// 앱 규칙: 일치하는 앱이 앞으로 오면 그 프로필, 벗어나면 발동 전 프로필로 복귀.
+    func frontAppChanged(_ bundleID: String?) {
+        if bundleID == Bundle.main.bundleIdentifier { return }   // 설정 창으로 오는 건 "앱을 벗어남"이 아님
+        lastFrontApp = bundleID
+        guard store.appRulesEnabled else { return }
+        let match = bundleID.flatMap { b in store.appRules.first { $0.enabled && $0.bundleID == b } }
+        if let m = match {
+            if appOverride?.rule == m { return }                     // 같은 규칙, 같은 대상이면 그대로
+            let restore = appOverride?.restoreID ?? store.activeID ?? store.profiles[0].id
+            appOverride = (m, restore)
+            if let p = store.profiles.first(where: { $0.id == m.profileID }) { apply(p, auto: true) }
+        } else if let o = appOverride {
+            appOverride = nil
+            if let p = store.profiles.first(where: { $0.id == o.restoreID }) { apply(p, auto: true) }
+        }
     }
 
     func tickSchedule() {
@@ -68,7 +102,8 @@ final class AppState {
 
     private func fire(_ rule: ScheduleRule, force: Bool) {
         guard let p = store.profiles.first(where: { $0.id == rule.profileID }) else { return }
-        if force || p.id != store.activeID || draft != applied { apply(p) }
+        if appOverride != nil { appOverride!.restoreID = p.id; return }   // 앱 규칙이 위 — 복귀 대상만 갱신
+        if force || p.id != store.activeID { apply(p, auto: !force) }
     }
 
     /// 편집 중인 변경을 버리고 적용된 값으로 되돌림.
@@ -76,6 +111,8 @@ final class AppState {
         draft = applied
         draftSchedule = store.schedule
         draftScheduleEnabled = store.scheduleEnabled
+        draftAppRules = store.appRules
+        draftAppRulesEnabled = store.appRulesEnabled
     }
 
     /// 장치/시스템에 실제로 쓴다. EQ는 EEPROM이라 바뀐 경우에만.
@@ -101,10 +138,12 @@ final class AppState {
     }
 
     /// 프로필 전체 적용 + 활성 프로필로 기록.
-    func apply(_ p: Profile) {
+    /// `auto`: 스케줄/앱 규칙에 의한 전환 — 설정 창에서 편집 중인 초안은 건드리지 않는다.
+    func apply(_ p: Profile, auto: Bool = false) {
         push(p, eq: p.eq != applied.eq)
+        let editing = auto && draft != applied
         applied = p
-        draft = p
+        if !editing { draft = p }
         store.activeID = p.id
         try? store.save()
     }
@@ -118,7 +157,14 @@ final class AppState {
         }
         store.schedule = draftSchedule
         store.scheduleEnabled = draftScheduleEnabled
+        store.appRules = draftAppRules
+        store.appRulesEnabled = draftAppRulesEnabled
         try? store.save()
+        if !store.appRulesEnabled, let o = appOverride {           // 앱 규칙을 끄면 발동 전 프로필로 복귀
+            appOverride = nil
+            if let p = store.profiles.first(where: { $0.id == o.restoreID }) { apply(p, auto: true) }
+        }
+        frontAppChanged(lastFrontApp ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier)   // 규칙 바꾸면 즉시 재평가
         // 현재 시각 기준 프로필로 즉시 전환, 이후 규칙 시각마다 다음 프로필로
         lastFiring = Schedule.activeFiring(store.schedule, at: Date())
         if store.scheduleEnabled, let f = lastFiring { fire(f.rule, force: true) }
@@ -150,6 +196,10 @@ final class AppState {
         }
         draftSchedule = draftSchedule.map(retarget)
         store.schedule = store.schedule.map(retarget)
+        func retargetApp(_ r: AppRule) -> AppRule { var r = r; if r.profileID == id { r.profileID = fallback }; return r }
+        draftAppRules = draftAppRules.map(retargetApp)
+        store.appRules = store.appRules.map(retargetApp)
+        if appOverride?.restoreID == id { appOverride?.restoreID = fallback }
         if store.activeID == id { apply(store.profiles[0]) } else { try? store.save() }
     }
 

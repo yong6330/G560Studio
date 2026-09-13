@@ -30,11 +30,14 @@ public struct ProfileStore {
     public var activeID: UUID?
     public var schedule: [ScheduleRule] = []
     public var scheduleEnabled = false
+    public var appRules: [AppRule] = []
+    public var appRulesEnabled = false
     let url: URL
 
     private struct File: Codable {
         var profiles: [Profile]; var activeID: UUID?
         var schedule: [ScheduleRule]?; var scheduleEnabled: Bool?
+        var appRules: [AppRule]?; var appRulesEnabled: Bool?
     }
 
     public static var defaultURL: URL {
@@ -52,6 +55,8 @@ public struct ProfileStore {
             activeID = f.activeID ?? f.profiles[0].id
             schedule = f.schedule ?? []
             scheduleEnabled = f.scheduleEnabled ?? false
+            appRules = f.appRules ?? []
+            appRulesEnabled = f.appRulesEnabled ?? false
         } else {
             let p = Profile.makeDefault(name: "기본")
             profiles = [p]
@@ -64,6 +69,7 @@ public struct ProfileStore {
     public func save() throws {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try enc.encode(File(profiles: profiles, activeID: activeID, schedule: schedule, scheduleEnabled: scheduleEnabled)).write(to: url, options: .atomic)
+        try enc.encode(File(profiles: profiles, activeID: activeID, schedule: schedule, scheduleEnabled: scheduleEnabled,
+                            appRules: appRules, appRulesEnabled: appRulesEnabled)).write(to: url, options: .atomic)
     }
 }
