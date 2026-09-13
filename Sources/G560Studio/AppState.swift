@@ -173,7 +173,7 @@ final class AppState {
         frontAppChanged(lastFrontApp ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier)   // 규칙 바꾸면 즉시 재평가
         // 현재 시각 기준 프로필로 즉시 전환, 이후 규칙 시각마다 다음 프로필로
         lastFiring = Schedule.activeFiring(store.schedule, at: Date())
-        if store.scheduleEnabled, let f = lastFiring { fire(f.rule, force: true) }
+        if store.scheduleEnabled, let f = lastFiring, f.rule.profileID != store.activeID { fire(f.rule, force: true) }
     }
 
     /// 빠른 패널: 조명 설정 즉시 반영 + 활성 프로필에 저장.

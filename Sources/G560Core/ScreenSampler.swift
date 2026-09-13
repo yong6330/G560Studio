@@ -10,6 +10,7 @@ func samplerLog(_ msg: String) {
     let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("G560Studio/sampler.log")
     let line = "\(Date()) \(msg)\n"
+    if let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int, size > 1_000_000 { try? FileManager.default.removeItem(at: url) }
     if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); try? h.close() }
     else { try? line.write(to: url, atomically: true, encoding: .utf8) }
 }
