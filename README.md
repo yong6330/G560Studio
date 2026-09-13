@@ -1,13 +1,9 @@
 # G560Studio
 
-Logitech G560을 **G HUB 없이** macOS 메뉴바에서 제어하는 앱입니다.
+<p align="center"><img src="docs/img/app-icon.png" width="128" alt="G560Studio"></p>
+<p align="center">Logitech G560을 G HUB 없이 macOS 메뉴바에서 제어하는 앱입니다.</p>
 
 macOS용 G HUB에는 소리에 반응하는 LightSync가 없고, 서브우퍼를 줄이려면 G HUB가 있어야 합니다. 둘 다 되게 만들었습니다 — 그리고 G HUB에 없는 것들도: 화면 색을 따라가는 조명, 화면 색 + 소리 밝기를 합친 **다이나믹 샘플러**, 하드웨어 EQ 프리셋, 시간·앱 기준 자동 프로필 전환.
-
-<p align="center">
-  <img src="docs/img/tab-lighting.png" width="420" alt="조명 탭 — 다이나믹 샘플러">
-  <img src="docs/img/quick-panel.png" width="240" alt="메뉴바 빠른 패널" align="top">
-</p>
 
 ## 요구 사항
 
@@ -160,6 +156,8 @@ tools/.venv/bin/python tools/g560probe.py restore   # Python 쪽 복구 (factory
 
 ## 라이선스
 
-코드는 [MIT](LICENSE).
+이 오픈소스 ONESTUDIO의 G560Studio 프로젝트는 [MIT 라이선스](LICENSE)를 따릅니다.
 
-`Assets/`의 로고와 제품 사진은 Logitech 소유이며, 비상업적 개인 사용 목적으로만 포함되어 있습니다. 이 프로젝트는 Logitech과 무관합니다.
+`Assets/`의 로고와 제품 사진은 Logitech 소유이며, 비상업적 개인 활용 목적으로만 포함되어 있습니다. 이 프로젝트는 Logitech과 무관합니다.
+
+<p align="center"><img src="docs/img/onestudio.png" width="208" alt="ONESTUDIO"></p>
