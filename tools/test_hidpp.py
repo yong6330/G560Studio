@@ -16,8 +16,8 @@ def test_parse_normal_reply():
     assert r.params[:3] == bytes([0x04, 0x03, 0x01]) and r.error is None
 
 def test_parse_error_reply():
-    r = parse(bytes.fromhex("11ffff0a04050700000000000000000000000000"))
-    assert r.error == (0x04, 0x05, 0x07) and ERROR_NAMES[0x07] == "INVALID_FUNCTION_ID"
+    r = parse(bytes.fromhex("11ffff063a020000000000000000000000000000"))  # 실측 EQ INVALID_ARGUMENT
+    assert r.error == (0x06, 0x3a, 0x02) and ERROR_NAMES[0x02] == "INVALID_ARGUMENT"
 
 if __name__ == "__main__":
     for n, f in list(globals().items()):

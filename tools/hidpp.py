@@ -25,6 +25,6 @@ def parse(report):
     report = bytes(report)
     assert report[0] == LONG and len(report) == LEN, report.hex()
     feat, fnsw = report[2], report[3]
-    params = report[4:]
-    err = (params[0], params[1], params[2]) if feat == 0xFF else None
-    return Reply(feat, fnsw >> 4, fnsw & 0xF, params, err)
+    if feat == 0xFF:   # 에러: [11][ff][ff][origFeature][origFn|sw][code] (실측)
+        return Reply(feat, report[4] >> 4, report[4] & 0xF, report[4:], (report[3], report[4], report[5]))
+    return Reply(feat, fnsw >> 4, fnsw & 0xF, report[4:], None)

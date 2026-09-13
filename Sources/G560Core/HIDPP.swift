@@ -19,9 +19,12 @@ public enum HIDPP {
 
     public static func parse(_ r: [UInt8]) -> HIDPPReply? {
         guard r.count == length, r[0] == reportID else { return nil }
-        let params = Array(r[4...])
-        let err = r[2] == 0xFF ? HIDPPError(origFeature: params[0], origFnSw: params[1], code: params[2]) : nil
-        return HIDPPReply(featureIndex: r[2], fn: r[3] >> 4, swID: r[3] & 0xF, params: params, error: err)
+        // 에러: [11][ff][ff][origFeature][origFn|sw][code] (실측)
+        if r[2] == 0xFF {
+            return HIDPPReply(featureIndex: 0xFF, fn: r[4] >> 4, swID: r[4] & 0xF, params: Array(r[4...]),
+                              error: HIDPPError(origFeature: r[3], origFnSw: r[4], code: r[5]))
+        }
+        return HIDPPReply(featureIndex: r[2], fn: r[3] >> 4, swID: r[3] & 0xF, params: Array(r[4...]), error: nil)
     }
 }
 
