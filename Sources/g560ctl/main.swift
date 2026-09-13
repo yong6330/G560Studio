@@ -17,6 +17,13 @@ if cmd == "volume" {   // CoreAudio (장치 HID 불필요)
     print("volume:", OutputVolume.get().map { Int(($0 * 100).rounded()) } ?? -1); exit(0)
 }
 
+if cmd == "screen" {   // 5초 화면 샘플링 진단
+    let sp = ScreenSampler(); print("permission:", ScreenSampler.hasPermission, "displays:", ScreenSampler.displays())
+    sp.start()
+    for _ in 0..<5 { Thread.sleep(forTimeInterval: 1); print("running:", sp.isRunning, "err:", sp.lastError ?? "-", "colors:", sp.colors.zones.map { $0.hex }) }
+    exit(0)
+}
+
 let dev = G560Device()
 let done = DispatchSemaphore(value: 0)
 var exitCode: Int32 = 0

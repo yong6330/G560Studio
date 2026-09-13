@@ -49,7 +49,8 @@ public struct ProfileStore {
 
     public init(url: URL = ProfileStore.defaultURL) {
         self.url = url
-        if let data = try? Data(contentsOf: url),
+        if let raw = try? Data(contentsOf: url),
+           let data = Self.migrate(raw),
            let f = try? JSONDecoder().decode(File.self, from: data), !f.profiles.isEmpty {
             profiles = f.profiles
             activeID = f.activeID ?? f.profiles[0].id
@@ -62,6 +63,19 @@ public struct ProfileStore {
             profiles = [p]
             activeID = p.id
         }
+    }
+
+    /// 구버전 파일 호환: screenSampler 페이로드를 ScreenOptions 형태로 감싼다.
+    static func migrate(_ data: Data) -> Data? {
+        guard var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var profiles = root["profiles"] as? [[String: Any]] else { return data }
+        for i in profiles.indices {
+            if var l = profiles[i]["lighting"] as? [String: Any], let ss = l["screenSampler"] as? [String: Any], ss["_0"] == nil {
+                l["screenSampler"] = ["_0": ss]; profiles[i]["lighting"] = l
+            }
+        }
+        root["profiles"] = profiles
+        return try? JSONSerialization.data(withJSONObject: root)
     }
 
     public var active: Profile? { profiles.first { $0.id == activeID } }

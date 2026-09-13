@@ -32,6 +32,25 @@ public enum LightingConfig: Codable, Equatable, Sendable, Hashable {
     case fixed(Palette)
     case breathing(Palette, period: Double)                            // 초
     case soundReactive(Palette, sensitivity: Double, split: BandSplit)
+    case screenSampler(ScreenOptions)
+}
+
+/// 화면 샘플러 옵션. 저장 파일에 키가 없으면 기본값 (버전 간 호환).
+public struct ScreenOptions: Codable, Equatable, Sendable, Hashable {
+    public var display: UInt32? = nil     // nil = 메인 디스플레이
+    public var inset: Double = 0.0        // 0 = 가장자리, 0.4 = 화면 안쪽
+    public var boost: Double = 1.0        // 채도/밝기 강도 0.5…2
+    public var audio: Bool = false        // true = 다이나믹: 밝기는 소리로
+    public init(display: UInt32? = nil, inset: Double = 0, boost: Double = 1, audio: Bool = false) {
+        self.display = display; self.inset = inset; self.boost = boost; self.audio = audio
+    }
+    public init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        display = try c.decodeIfPresent(UInt32.self, forKey: .display)
+        inset = try c.decodeIfPresent(Double.self, forKey: .inset) ?? 0
+        boost = try c.decodeIfPresent(Double.self, forKey: .boost) ?? 1
+        audio = try c.decodeIfPresent(Bool.self, forKey: .audio) ?? false
+    }
 }
 
 extension RGB {
@@ -56,10 +75,16 @@ extension RGB {
 
 public extension LightingConfig {
     /// 한 프레임의 4존 색. `envelope`는 사운드 반응 모드의 어택/릴리즈 상태 (호출자가 보관).
-    func frame(t: TimeInterval, audio: AudioLevels, envelope: inout Float) -> ZoneColors {
+    func frame(t: TimeInterval, audio: AudioLevels, envelope: inout Float, screen: ZoneColors = .off) -> ZoneColors {
         switch self {
         case .off:
             return .off
+        case .screenSampler(let o):
+            guard o.audio else { return screen }
+            let target = min(1, audio.rms * 1.5 * 2.5)
+            envelope += (target - envelope) * (target > envelope ? 0.5 : 0.12)
+            let floor: Float = 0.15
+            return ZoneColors(zones: screen.zones.map { $0.scaled(floor + (1 - floor) * envelope) })
         case .fixed(let p):
             return p.colors(t: t)
         case .breathing(let p, let period):

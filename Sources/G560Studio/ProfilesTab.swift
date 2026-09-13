@@ -105,6 +105,7 @@ struct ProfilesTab: View {
 struct ProfileRow: View {
     @Environment(AppState.self) var state
     let profile: Profile
+    @FocusState private var editing: Bool
     var active: Bool { profile.id == state.store.activeID }
     var name: Binding<String> {
         Binding(get: { profile.name }, set: { n in
@@ -118,7 +119,10 @@ struct ProfileRow: View {
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
                 .foregroundStyle(.white)
                 .opacity(active ? 1 : 0)
-            TextField("", text: name, prompt: Text("프로필 이름")).labelsHidden().textFieldStyle(.plain).onSubmit { try? state.store.save() }
+            TextField("", text: name, prompt: Text("프로필 이름")).labelsHidden().textFieldStyle(.plain)
+                .focused($editing)
+                .onSubmit { try? state.store.save(); editing = false }          // Enter → 저장 + 커서 해제
+                .onChange(of: editing) { _, on in if !on { try? state.store.save() } }   // 포커스 아웃 → 저장
             Spacer()
             ProfilePeekButton(profile: profile)
             Button("적용") { state.apply(profile) }.controlSize(.small).disabled(active && !state.hasChanges)
@@ -140,6 +144,7 @@ struct ProfilePeekButton: View {
         }
         switch profile.lighting {
         case .off: return "끄기"
+        case .screenSampler(let o): return (o.audio ? "다이나믹 샘플러" : "화면 샘플러") + (o.display == nil ? "" : " · 디스플레이 \(o.display!)")
         case .fixed(let p): return "고정 · \(pal(p))"
         case .breathing(let p, let per): return "브리딩 \(String(format: "%.1f", per))초 · \(pal(p))"
         case .soundReactive(let p, let s, let b):

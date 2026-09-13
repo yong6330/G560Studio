@@ -9,6 +9,7 @@
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>14.2</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>NSScreenCaptureUsageDescription</key><string>화면 샘플러 조명 모드에서 화면 가장자리 색을 읽기 위해 필요합니다. 화면을 저장하거나 전송하지 않습니다.</string>
   <key>LSUIElement</key><true/>
   <key>NSAudioCaptureUsageDescription</key><string>재생 중인 소리에 맞춰 G560 조명과 메뉴바 아이콘을 움직이기 위해 시스템 오디오를 읽습니다. 녹음하거나 저장하지 않습니다.</string>
 </dict></plist>

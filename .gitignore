@@ -7,3 +7,4 @@ xcuserdata/
 factory-defaults.local.json
 tools/.venv/
 build/
+tools/__pycache__/

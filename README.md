@@ -14,7 +14,15 @@ Logitech G560을 G HUB 없이 macOS 메뉴바에서 제어합니다.
 ```bash
 scripts/bundle.sh release && cp -R build/G560Studio.app /Applications/
 ```
-첫 실행 시 "시스템 오디오 녹음" 권한을 허용하세요. 녹음·저장은 하지 않고 레벨 계산에만 씁니다.
+첫 실행 시 "시스템 오디오 녹음" 권한을, 화면 샘플러 사용 시 "화면 기록" 권한을 허용하세요. 저장·전송은 하지 않습니다.
+
+권한은 코드 서명 identity에 묶이므로 ad-hoc 서명이면 빌드할 때마다 초기화됩니다. 자체 서명 인증서를 한 번 만들어 두면 유지됩니다:
+```bash
+# "G560Studio Dev" 라는 이름의 코드 서명 인증서를 키체인 접근에서 만들거나 (인증서 지원 → 인증서 생성 → 유형: 코드 서명),
+# 아래처럼 openssl로 만든 뒤 신뢰 설정
+security find-identity -v -p codesigning
+```
+`scripts/bundle.sh`는 이 identity가 있으면 자동으로 사용합니다 (`CODESIGN_IDENTITY`로 변경 가능).
 
 ## 테스트
 ```bash
