@@ -9,22 +9,22 @@ struct ProfilesTab: View {
         @Bindable var state = state
         Form {
             Section("프로필") {
-                ForEach($state.store.profiles) { $p in
+                ForEach(state.store.profiles) { p in
                     let active = p.id == state.store.activeID
+                    // ponytail: $binding ForEach 는 삭제 시 인덱스 크래시 → id 기반 바인딩
+                    let name = Binding(get: { p.name }, set: { n in
+                        if let i = state.store.profiles.firstIndex(where: { $0.id == p.id }) { state.store.profiles[i].name = n }
+                    })
                     HStack(spacing: 10) {
                         Text("활성").font(.caption2.bold())
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
                             .foregroundStyle(.white)
                             .opacity(active ? 1 : 0)
-                        TextField("이름", text: $p.name).textFieldStyle(.plain).onSubmit { try? state.store.save() }
+                        TextField("이름", text: name).textFieldStyle(.plain).onSubmit { try? state.store.save() }
                         Spacer()
                         Button("적용") { state.apply(p) }.controlSize(.small).disabled(active && !state.hasChanges)
-                        Button {
-                            state.store.profiles.removeAll { $0.id == p.id }
-                            if state.store.activeID == p.id { state.store.activeID = state.store.profiles.first?.id }
-                            try? state.store.save()
-                        } label: { Image(systemName: "trash") }
+                        Button { state.deleteProfile(p.id) } label: { Image(systemName: "trash") }
                         .controlSize(.small).disabled(state.store.profiles.count == 1)
                     }
                 }
@@ -46,7 +46,7 @@ struct ProfilesTab: View {
             Section("장치") {
                 LabeledContent("공장 초기값") {
                     Button("초기화…", role: .destructive) { confirmRestore = true }
-                        .confirmationDialog("장치를 서브우퍼 40, EQ Flat, 조명 끄기로 되돌립니다. 프로필 파일은 그대로 둡니다.",
+                        .confirmationDialog("장치를 공장 초기값으로 되돌립니다.",
                                             isPresented: $confirmRestore) {
                             Button("초기화", role: .destructive) { state.restoreFactory() }
                         }

@@ -8,6 +8,14 @@ public struct Profile: Codable, Identifiable, Equatable, Sendable, Hashable {
     public var woofer: Int             // 0…100
     public var eq: [Int]               // 10밴드 dB
 
+    /// 장치 공장 초기값 (factory-defaults.json 실측: 우퍼 40, EQ flat) + 기본 조명(사운드 반응 레인보우).
+    public static func factory() -> Profile {
+        Profile(id: UUID(), name: "공장 초기값",
+                lighting: .soundReactive(.rainbow(speed: 0.05), sensitivity: 1.5, split: .none),
+                volume: 0.2,   // ponytail: 개발 중 고정. 배포 전 OutputVolume.get() ?? 0.3
+                woofer: G560.factoryWoofer, eq: G560.factoryEQ)
+    }
+
     public static func makeDefault(name: String) -> Profile {
         Profile(id: UUID(), name: name,
                 lighting: .soundReactive(.rainbow(speed: 0.05), sensitivity: 1.5, split: .none),

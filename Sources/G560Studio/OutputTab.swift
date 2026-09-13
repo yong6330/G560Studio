@@ -77,9 +77,11 @@ struct OutputTab: View {
                 LabeledContent("Preset") {
                     LazyVGrid(columns: Array(repeating: GridItem(.fixed(96), spacing: 6), count: 3), spacing: 6) {
                         ForEach(Self.presets, id: \.0) { name, g in
-                            Button { state.draft.eq = g } label: { Text(name).frame(maxWidth: .infinity) }
-                                .buttonStyle(.bordered)
-                                .tint(state.draft.eq == g ? .accentColor : nil)
+                            if state.draft.eq == g {
+                                Button { } label: { Text(name).frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
+                            } else {
+                                Button { state.draft.eq = g } label: { Text(name).frame(maxWidth: .infinity) }.buttonStyle(.bordered)
+                            }
                         }
                     }
                 }

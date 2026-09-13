@@ -88,12 +88,21 @@ final class AppState {
         try? store.save()
     }
 
-    /// 장치를 공장값(우퍼 40, EQ flat)으로, 조명은 끔. 프로필 파일은 건드리지 않음.
+    func deleteProfile(_ id: UUID) {
+        guard store.profiles.count > 1 else { return }
+        store.profiles.removeAll { $0.id == id }
+        if store.activeID == id, let first = store.profiles.first { apply(first) } else { try? store.save() }
+    }
+
+    /// "공장 초기값" 프로필로 전환: 우퍼 40, EQ Flat, 사운드 반응 레인보우. 목록에 없으면 추가하고 활성화·저장.
     func restoreFactory() {
-        draft.woofer = G560.factoryWoofer
-        draft.eq = G560.factoryEQ
-        draft.lighting = .off
-        push(draft, eq: true)
-        applied = draft
+        var p = Profile.factory()
+        if let existing = store.profiles.first(where: { $0.name == p.name }) { p.id = existing.id }
+        if let i = store.profiles.firstIndex(where: { $0.id == p.id }) { store.profiles[i] = p } else { store.profiles.append(p) }
+        push(p, eq: true)
+        applied = p
+        draft = p
+        store.activeID = p.id
+        try? store.save()
     }
 }
