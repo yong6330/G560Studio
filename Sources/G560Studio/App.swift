@@ -3,21 +3,78 @@ import G560Core
 
 @main
 struct G560StudioApp: App {
-    @State private var state = AppState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     var body: some Scene {
-        MenuBarExtra {
-            QuickPanel().environment(state)
-        } label: {
-            Image(nsImage: MenuBarIcon.render(levels: state.levels, zones: state.zoneColors, connected: state.connected))
-        }
-        .menuBarExtraStyle(.window)
+        // 씬은 필요 없지만 App 프로토콜상 하나는 있어야 함. 실제 UI는 AppDelegate가 NSStatusItem/NSPopover/NSWindow로 관리.
+        Settings { EmptyView() }
+    }
+}
 
-        // Settings 씬 대신 일반 Window: LSUIElement 앱에서 확실히 앞으로 가져오기 위해
-        Window("G560Studio 설정", id: "settings") {
-            SettingsView().environment(state)
+/// 메뉴바 아이콘·빠른 패널·설정 창을 AppKit으로 직접 관리.
+/// SwiftUI MenuBarExtra는 아이콘을 20Hz로 갱신할 때마다 전체 레이아웃을 다시 해서 CPU를 많이 먹는다(실측 ~25%).
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    static var shared: AppDelegate!
+    let state = AppState()
+    private var statusItem: NSStatusItem!
+    private var popover = NSPopover()
+    private var settingsWindow: NSWindow?
+    private var iconTimer: Timer?
+    private var lastIconKey: (AudioLevels, ZoneColors, Bool)?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.shared = self
+        statusItem = NSStatusBar.system.statusItem(withLength: 30)
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(togglePanel)
+        statusItem.button?.imagePosition = .imageOnly
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = NSHostingController(rootView: QuickPanel().environment(state))
+        updateIcon()
+        // 아이콘: 12Hz, 눈에 띄게 바뀔 때만 다시 그림. 모니터가 여러 대면 AppKit이 메뉴바마다 복제본을 다시 그려서
+        // 갱신 한 번이 비싸다(실측: 20Hz 무조건 갱신 시 메인 스레드 ~18%).
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updateIcon() }
         }
-        .windowResizability(.contentMinSize)
-        .defaultPosition(.center)
+    }
+
+    private func updateIcon() {
+        let key = (state.levels, state.zoneColors, state.connected)
+        if let k = lastIconKey, k.2 == key.2 {
+            let rmsDelta = abs(k.0.rms - key.0.rms)
+            let colorDelta = zip(k.1.zones, key.1.zones).map { a, b in max(abs(Int(a.r) - Int(b.r)), abs(Int(a.g) - Int(b.g)), abs(Int(a.b) - Int(b.b))) }.max() ?? 0
+            let silent = key.0.rms < 0.002 && k.0.rms < 0.002
+            if silent && colorDelta < 6 { return }                    // 무음 + 색 거의 그대로 → 갱신 없음
+            if rmsDelta < 0.01 && colorDelta < 6 { return }           // 미세 변화는 건너뜀
+        }
+        lastIconKey = key
+        statusItem.button?.image = MenuBarIcon.render(levels: key.0, zones: key.1, connected: key.2)
+    }
+
+    @objc private func togglePanel() {
+        guard let button = statusItem.button else { return }
+        if popover.isShown { popover.performClose(nil); return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    func closePanel() { popover.performClose(nil) }
+
+    func openSettings() {
+        if settingsWindow == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 660),
+                             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            w.title = "G560Studio 설정"
+            w.contentMinSize = NSSize(width: 520, height: 520)
+            w.contentViewController = NSHostingController(rootView: SettingsView().environment(state))
+            w.isReleasedWhenClosed = false
+            w.center()
+            settingsWindow = w
+        }
+        closePanel()
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }

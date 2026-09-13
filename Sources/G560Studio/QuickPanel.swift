@@ -5,7 +5,6 @@ import ServiceManagement
 /// 메뉴바 빠른 패널 — Tailscale 스타일: 헤더(이름/상태 + 토글), 메뉴 행, 구분선, 단축키.
 struct QuickPanel: View {
     @Environment(AppState.self) var state
-    @Environment(\.openWindow) var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -71,11 +70,7 @@ struct QuickPanel: View {
             MenuSeparator()
 
             LoginItemRow()
-            MenuRow(title: "설정…", shortcut: "⌘,") {
-                NSApp.keyWindow?.close()          // 메뉴바 패널 닫기
-                openWindow(id: "settings")
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            MenuRow(title: "설정…", shortcut: "⌘,") { AppDelegate.shared.openSettings() }
             .keyboardShortcut(",", modifiers: .command)
             MenuRow(title: "종료", shortcut: "⌘Q") { NSApp.terminate(nil) }
                 .keyboardShortcut("q", modifiers: .command)

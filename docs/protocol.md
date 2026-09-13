@@ -122,3 +122,7 @@ EEPROM 마모 방지: 앱은 슬라이더 드래그 중이 아니라 **놓을 �
 - hidapi macOS 백엔드는 기본 **독점 오픈**. 그 상태로 장치를 잡고 있으면 G HUB가 "비활성"으로 표시한다. `hid_darwin_set_open_exclusive(0)` 필수. (앱은 IOHIDManager `kIOHIDOptionsTypeNone`으로 열면 동일.)
 - G HUB(macOS) 서브우퍼 숫자 입력창은 장치에 반영되지 않는 버그가 있다. 슬라이더 드래그만 반영됨.
 - macOS G HUB에는 EQ, 오디오 시각화, 존별 색 지정 UI가 없다.
+
+## 오디오 포맷 (CoreAudio) — 사용하지 않음
+
+`kAudioStreamPropertyPhysicalFormat`으로 샘플레이트를 바꾸면 G560의 볼륨 컨트롤(`kAudioDevicePropertyVolumeScalar`)이 사라지고 이후 포맷 변경도 반영되지 않는다. USB 재연결 전까지 복구 안 됨 (실측 2026-09-13). 앱에서 포맷 변경 기능을 제거했다.

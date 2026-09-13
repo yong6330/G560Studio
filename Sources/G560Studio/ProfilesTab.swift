@@ -101,6 +101,8 @@ struct ProfilesTab: View {
             }
         }
         .formStyle(.grouped)
+        .contentShape(Rectangle())
+        .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // 빈 곳 클릭 → 이름 편집 종료
         .fileExporter(isPresented: $showExport, document: JSONDocument(data: (try? state.store.exportData()) ?? Data()),
                       contentType: .json, defaultFilename: "G560Studio-profiles") { r in
             ioMessage = (try? r.get()) != nil ? "내보냈습니다." : "내보내기 실패"
@@ -147,7 +149,7 @@ struct ProfileRow: View {
                 .opacity(active ? 1 : 0)
             TextField("", text: name, prompt: Text("프로필 이름")).labelsHidden().textFieldStyle(.plain)
                 .focused($editing)
-                .onSubmit { try? state.store.save(); editing = false }          // Enter → 저장 + 커서 해제
+                .onSubmit { try? state.store.save(); editing = false; NSApp.keyWindow?.makeFirstResponder(nil) }   // Enter → 저장 + 커서 해제
                 .onChange(of: editing) { _, on in if !on { try? state.store.save() } }   // 포커스 아웃 → 저장
             Spacer()
             ProfilePeekButton(profile: profile)

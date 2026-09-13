@@ -57,7 +57,7 @@ struct LightingTab: View {
     var body: some View {
         Form {
             Section {
-                SpeakerRender(zones: state.zoneColors, levels: state.levels, connected: state.connected)
+                SpeakerRender()
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
@@ -110,7 +110,7 @@ struct LightingTab: View {
                         ForEach([1, 2, 3, 4], id: \.self) { Text("안쪽 \($0 * 10)%").tag($0) }
                     }
                     if let e = state.engine.screen.lastError { Text(e).font(.caption).foregroundStyle(.red) }
-                    LabeledContent("샘플 구역") { EdgeDiagram(colors: state.zoneColors, inset: o.inset) }
+                    LabeledContent("샘플 구역") { EdgeDiagram(inset: o.inset) }
                 }
             } else if isOn {
                 Section("색상") {
@@ -153,7 +153,8 @@ struct LightingTab: View {
 
 /// 밝은 화면 모형 + 네 모서리 브래킷(ㄱ/ㄴ)이 샘플 구역. inset 에 따라 안쪽으로 이동.
 struct EdgeDiagram: View {
-    let colors: ZoneColors
+    @Environment(AppState.self) var state
+    var colors: ZoneColors { state.zoneColors }
     let inset: Double
     static let size = CGSize(width: 260, height: 146)
 

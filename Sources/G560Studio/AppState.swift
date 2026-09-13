@@ -2,6 +2,7 @@ import Foundation
 import G560Core
 import Observation
 import AppKit
+import os
 
 @Observable @MainActor
 final class AppState {
@@ -30,6 +31,7 @@ final class AppState {
     /// 앱 규칙이 발동 중이면 (규칙, 발동 전 활성 프로필 id)
     private var appOverride: (rule: AppRule, restoreID: UUID)?
     private var lastFrontApp: String?      // 자기 자신(설정 창) 제외한 마지막 앞 앱
+    private let latestLevels = OSAllocatedUnfairLock(initialState: AudioLevels.silence)
 
     init() {
         engine = LightingEngine(device: device)
@@ -52,15 +54,20 @@ final class AppState {
         device.onDisconnect = { [weak self] in Task { @MainActor in self?.connected = false } }
         tap.onLevels = { [weak self] l in
             self?.engine.update(audio: l)
-            Task { @MainActor in self?.levels = l }
+            self?.latestLevels.withLock { $0 = l }     // UI 반영은 20Hz 타이머에서 (콜백마다 뷰 갱신하면 CPU 낭비)
         }
         device.start()
         do { try tap.start() } catch {
             audioError = "시스템 오디오 접근 실패(\(error)). 시스템 설정 → 개인정보 보호 → 화면 및 시스템 오디오 녹음에서 G560Studio를 허용하세요."
         }
         engine.start()
-        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.zoneColors = self?.engine.lastFrame ?? .off }
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let z = self.engine.lastFrame, l = self.latestLevels.withLock { $0 }
+                if z != self.zoneColors { self.zoneColors = z }       // 같으면 뷰 갱신 안 함
+                if l != self.levels { self.levels = l }
+            }
         }
         // 스케줄: 시작 시 1회 + 매분. 규칙이 바뀔 때만 발동 (수동 전환은 다음 규칙까지 유지).
         lastFiring = Schedule.activeFiring(store.schedule, at: Date())
