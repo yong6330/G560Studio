@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """G560 HID++ probe. Phase 0 tool. Read-only until Task 6."""
-import json, sys, time
+import fcntl, json, os, sys, time
 import hid
 from hidpp import build, parse, ERROR_NAMES, SW_ID
 
@@ -21,7 +21,26 @@ FEATURE_NAMES = {
 FORBIDDEN = {0x0020, 0x00C2, 0x00C3, 0x00D0, 0x1801, 0x1802, 0x1E00}
 
 
+_LOCK = None
+
+
+def take_device_lock():
+    """G560Studio 앱·g560ctl과 같은 락. 동시에 두 프로그램이 스피커에 명령을 보내지 않도록."""
+    global _LOCK
+    if _LOCK:
+        return
+    d = os.path.expanduser("~/Library/Application Support/G560Studio")
+    os.makedirs(d, exist_ok=True)
+    f = open(os.path.join(d, "device.lock"), "a")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit("G560Studio 앱 또는 g560ctl이 스피커를 쓰는 중입니다. 먼저 종료하세요.")
+    _LOCK = f
+
+
 def open_device():
+    take_device_lock()
     hid.hidapi.hid_darwin_set_open_exclusive(0)   # 공유 모드: G HUB와 동시에 열 수 있게
     for d in hid.enumerate(VID, PID):
         if d["usage_page"] == USAGE_PAGE:

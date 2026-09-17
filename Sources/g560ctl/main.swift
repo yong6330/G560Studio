@@ -59,6 +59,6 @@ dev.onConnect = {
     } catch { print("error:", error); exitCode = 2 }
     done.signal()
 }
-dev.start()
+guard dev.start() else { print("다른 G560Studio/g560ctl이 스피커를 쓰는 중입니다. 먼저 종료하세요."); exit(4) }
 if done.wait(timeout: .now() + 15) == .timedOut { print("G560 not found"); exitCode = 3 }
 exit(exitCode)

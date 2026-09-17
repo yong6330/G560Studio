@@ -19,10 +19,11 @@ public enum OutputVolume {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName,
                                               mScope: kAudioObjectPropertyScopeGlobal,
                                               mElement: kAudioObjectPropertyElementMain)
-        var s: CFString = "" as CFString
-        var size = UInt32(MemoryLayout<CFString>.size)
-        AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &s)
-        return s as String
+        // 이 속성은 +1 retain된 CFString을 돌려준다 — Unmanaged로 받아야 메모리 안전하고 새지 않는다.
+        var s: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &s) == noErr, let s else { return "" }
+        return s.takeRetainedValue() as String
     }
 
     public static func g560DeviceID() -> AudioObjectID? { allDevices().first { name($0).contains("G560") } }
