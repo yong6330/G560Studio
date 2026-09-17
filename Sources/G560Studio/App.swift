@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var iconTimer: Timer?
     private var lastIconKey: (AudioLevels, ZoneColors, Bool)?
+    private var styleWas: MenuBarStyle = .wave
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.shared = self
@@ -42,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateIcon() {
         let key = (state.levels, state.zoneColors, state.connected)
+        if styleWas != state.menuBarStyle { styleWas = state.menuBarStyle; lastIconKey = nil }
         if let k = lastIconKey, k.2 == key.2 {
             let rmsDelta = abs(k.0.rms - key.0.rms)
             let colorDelta = zip(k.1.zones, key.1.zones).map { a, b in max(abs(Int(a.r) - Int(b.r)), abs(Int(a.g) - Int(b.g)), abs(Int(a.b) - Int(b.b))) }.max() ?? 0
@@ -50,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if rmsDelta < 0.01 && colorDelta < 6 { return }           // 미세 변화는 건너뜀
         }
         lastIconKey = key
-        statusItem.button?.image = MenuBarIcon.render(levels: key.0, zones: key.1, connected: key.2)
+        statusItem.button?.image = MenuBarIcon.render(levels: key.0, zones: key.1, connected: key.2, style: state.menuBarStyle)
     }
 
     @objc private func togglePanel() {
@@ -64,10 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func openSettings() {
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 660),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 680),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             w.title = "G560Studio 설정"
-            w.contentMinSize = NSSize(width: 520, height: 520)
+            w.contentMinSize = NSSize(width: 440, height: 520)
             w.contentViewController = NSHostingController(rootView: SettingsView().environment(state))
             w.isReleasedWhenClosed = false
             w.center()

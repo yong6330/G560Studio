@@ -30,6 +30,17 @@ struct QuickPanel: View {
 
             MenuSeparator()
 
+            HStack(spacing: 10) {
+                Text("메뉴바 아이콘").frame(alignment: .leading)
+                Spacer()
+                Picker("", selection: Binding(get: { state.menuBarStyle }, set: { state.menuBarStyle = $0 })) {
+                    ForEach(MenuBarStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.labelsHidden().fixedSize()
+            }
+            .padding(.horizontal, 15).padding(.vertical, 4)
+
+            MenuSeparator()
+
             // 프로필
             Text("프로필").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 4)
             ForEach(state.store.profiles) { p in
@@ -66,8 +77,6 @@ struct QuickPanel: View {
                 }.labelsHidden()
             }
             .padding(.horizontal, 15).padding(.vertical, 4)
-
-            MenuSeparator()
 
             LoginItemRow()
             MenuRow(title: "설정…", shortcut: "⌘,") { AppDelegate.shared.openSettings() }

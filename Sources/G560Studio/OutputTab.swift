@@ -76,8 +76,8 @@ struct OutputTab: View {
             }
         }
         .formStyle(.grouped)
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
     }
 
     func gridLine(_ label: String) -> some View {

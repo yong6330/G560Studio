@@ -101,8 +101,8 @@ struct ProfilesTab: View {
             }
         }
         .formStyle(.grouped)
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
         .contentShape(Rectangle())
         .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // 빈 곳 클릭 → 이름 편집 종료
         .fileExporter(isPresented: $showExport, document: JSONDocument(data: (try? state.store.exportData()) ?? Data()),

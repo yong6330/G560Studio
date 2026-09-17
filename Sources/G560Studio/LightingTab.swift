@@ -143,8 +143,8 @@ struct LightingTab: View {
             }
         }
         .formStyle(.grouped)
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
         .onAppear {
             if cfg != .off { memo = cfg } else if state.applied.lighting != .off { memo = state.applied.lighting }
             if case .rainbow(let sp) = palette { lastRainbow = sp } else if case .custom(let z) = palette { lastCustom = z }

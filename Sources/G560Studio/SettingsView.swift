@@ -36,7 +36,7 @@ struct SettingsView: View {
             .padding(.vertical, 14)
             .background(.bar)
         }
-        .frame(minWidth: 520, minHeight: 520)
+        .frame(minWidth: 440, minHeight: 520)
     }
 }
 

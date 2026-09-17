@@ -32,6 +32,9 @@ final class AppState {
     private var appOverride: (rule: AppRule, restoreID: UUID)?
     private var lastFrontApp: String?      // 자기 자신(설정 창) 제외한 마지막 앞 앱
     private let latestLevels = OSAllocatedUnfairLock(initialState: AudioLevels.silence)
+    var menuBarStyle: MenuBarStyle = MenuBarStyle(rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "") ?? .wave {
+        didSet { UserDefaults.standard.set(menuBarStyle.rawValue, forKey: "menuBarStyle") }
+    }
 
     init() {
         engine = LightingEngine(device: device)

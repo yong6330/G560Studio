@@ -7,6 +7,7 @@ CFG=${1:-debug}
 swift build -c "$CFG" --product G560Studio
 APP=build/G560Studio.app
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+xattr -cr Assets ".build/$CFG/G560Studio" 2>/dev/null || true
 # 확장 속성(com.apple.provenance 등)이 따라오면 codesign이 거부하므로 ditto --noextattr 로 복사
 ditto --noextattr --norsrc ".build/$CFG/G560Studio" "$APP/Contents/MacOS/G560Studio"
 ditto --noextattr --norsrc Sources/G560Studio/Info.plist "$APP/Contents/Info.plist"
