@@ -109,7 +109,7 @@ flowchart LR
     subgraph G560Core
         LM[LevelMeter<br>RMS · 저/중/고 대역]
         SS[ScreenSampler<br>4구역 평균색]
-        LE[LightingEngine<br>30 Hz 프레임]
+        LE[LightingEngine<br>10 Hz 프레임]
         LC[LightingConfig<br>고정 · 브리딩 · 사운드 · 화면 · 다이나믹]
         DEV[G560Device<br>IOHIDManager · HID++]
         PS[ProfileStore<br>profiles.json]
@@ -138,7 +138,7 @@ flowchart LR
 - **g560ctl** — 개발·복구용 CLI (`status`, `led`, `woofer`, `eq`, `restore` …).
 - **tools/** — 프로토콜을 알아낼 때 쓴 Python 스크립트와 공장 초기값 스냅샷.
 
-조명 애니메이션은 전부 소프트웨어에서 계산하고 장치에는 "존 N을 이 색으로" 명령 하나만 30 Hz로 보냅니다. 장치에 쓰는 HID++ 명령은 재전송 검증된 4개(LED, 서브우퍼, EQ, 밝기)뿐이고, 펌웨어·리셋 계열은 호출하지 않습니다. 자세한 실측 내용은 [docs/protocol.md](docs/protocol.md).
+조명 애니메이션은 전부 소프트웨어에서 계산하고 장치에는 "존 N을 이 색으로" 명령 하나만 10 Hz로 보냅니다. 장치에 쓰는 HID++ 명령은 재전송 검증된 4개(LED, 서브우퍼, EQ, 밝기)뿐이고, 펌웨어·리셋 계열은 호출하지 않습니다. 자세한 실측 내용은 [docs/protocol.md](docs/protocol.md).
 
 ## 소스에서 빌드
 

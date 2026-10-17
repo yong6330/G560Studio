@@ -23,31 +23,28 @@ struct AppRuleRow: View {
             HStack(spacing: 10) {
                 Toggle("", isOn: $rule.enabled).toggleStyle(.switch).controlSize(.small).labelsHidden()
                 Image(nsImage: icon).resizable().frame(width: 22, height: 22)
-                Text(rule.appName).lineLimit(1)
-                Spacer()
+                Text(rule.appName).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+                Button { onDelete() } label: { Image(systemName: "trash") }.controlSize(.small)
+            }
+            HStack(spacing: 8) {
                 Toggle("시간 제한", isOn: Binding(get: { rule.hasTimeLimit }, set: { on in
                     rule.startMinute = on ? 22 * 60 : nil; rule.endMinute = on ? 8 * 60 : nil
-                })).toggleStyle(.checkbox)
+                })).toggleStyle(.checkbox).fixedSize()
+                Spacer(minLength: 0)
                 Image(systemName: "arrow.right").foregroundStyle(.secondary)
                 Picker("", selection: $rule.profileID) {
                     ForEach(state.store.profiles) { p in Text(p.name).tag(p.id) }
-                }.labelsHidden().frame(width: 120)
-                Button { onDelete() } label: { Image(systemName: "trash") }.controlSize(.small)
+                }.labelsHidden().frame(maxWidth: 160)
             }
             if rule.hasTimeLimit {
-                HStack(spacing: 4) {
-                    ForEach(1...7, id: \.self) { d in
-                        let on = rule.weekdays.contains(d)
-                        Button(ScheduleTab.dayNames[d - 1]) { if on { rule.weekdays.remove(d) } else { rule.weekdays.insert(d) } }
-                            .buttonStyle(.bordered).tint(on ? .accentColor : nil)
-                            .foregroundStyle(on ? Color.accentColor : .secondary).frame(width: 34)
-                    }
-                    Spacer()
+                HStack(spacing: 6) {
                     DatePicker("", selection: time(\.startMinute, default: 22 * 60), displayedComponents: .hourAndMinute).labelsHidden()
                     Text("~").foregroundStyle(.secondary)
                     DatePicker("", selection: time(\.endMinute, default: 8 * 60), displayedComponents: .hourAndMinute).labelsHidden()
+                    Spacer(minLength: 0)
                 }
-                .padding(.leading, 42)
+                WeekdayChips(days: $rule.weekdays)
             }
         }
         .padding(.vertical, 2)

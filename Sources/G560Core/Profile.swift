@@ -11,12 +11,12 @@ public struct Profile: Codable, Identifiable, Equatable, Sendable, Hashable {
 
     enum CodingKeys: String, CodingKey { case id, name, lighting, volume, woofer, eq, brightness }
     public init(id: UUID, name: String, lighting: LightingConfig, volume: Double, woofer: Int, eq: [Int], brightness: Int = 100) {
-        self.id = id; self.name = name; self.lighting = lighting; self.volume = volume; self.woofer = woofer; self.eq = eq; self.brightness = brightness
+        self.id = id; self.name = name; self.lighting = lighting; self.volume = OutputVolume.safe(volume); self.woofer = woofer; self.eq = eq; self.brightness = brightness
     }
     public init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); name = try c.decode(String.self, forKey: .name)
-        lighting = try c.decode(LightingConfig.self, forKey: .lighting); volume = try c.decode(Double.self, forKey: .volume)
+        lighting = try c.decode(LightingConfig.self, forKey: .lighting); volume = OutputVolume.safe(try c.decode(Double.self, forKey: .volume))   // 저장된 0(뮤트 직전 값) 방지
         woofer = try c.decode(Int.self, forKey: .woofer); eq = try c.decode([Int].self, forKey: .eq)
         brightness = try c.decodeIfPresent(Int.self, forKey: .brightness) ?? 100
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 20Hz로 현재 config의 프레임을 계산해 바뀐 존만 장치에 쓴다.
+/// 10Hz로 현재 config의 프레임을 계산해 바뀐 존만 장치에 쓴다.
 public final class LightingEngine: @unchecked Sendable {
     public var config: LightingConfig {
         get { lock.withLock { _config } }
@@ -34,7 +34,7 @@ public final class LightingEngine: @unchecked Sendable {
 
     public func start() {
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now(), repeating: .milliseconds(50))   // 20Hz. 장치 USB 부하를 낮추려 빈도 제한
+        t.schedule(deadline: .now(), repeating: .milliseconds(100))   // 10Hz. 2026-09-13 사고 후 USB 부하를 더 낮춤
         t.setEventHandler { [weak self] in self?.tick() }
         t.resume()
         timer = t
@@ -45,14 +45,14 @@ public final class LightingEngine: @unchecked Sendable {
     /// 재연결·프로필 교체 시 전 존 강제 재전송
     public func resend() {
         queue.async {
-            guard self.enabled, self.device.isConnected else { return }
+            guard self.enabled, self.device.isConnected, !self.device.isHeld else { return }
             self.sent = ZoneColors(all: RGB(1, 1, 1))
             self.push(self.config.frame(t: Date().timeIntervalSince(self.t0), audio: self.audio, state: &self.state, screen: self.screen.colors))
         }
     }
 
     private func tick() {
-        guard enabled, device.isConnected else { return }
+        guard enabled, device.isConnected, !device.isHeld else { return }   // isHeld: 재연결 반복 중엔 스트리밍 보류
         push(config.frame(t: Date().timeIntervalSince(t0), audio: audio, state: &state, screen: screen.colors))
     }
 
@@ -72,8 +72,10 @@ public final class LightingEngine: @unchecked Sendable {
             let d = max(abs(Int(c.r) - Int(p.r)), abs(Int(c.g) - Int(p.g)), abs(Int(c.b) - Int(p.b)))
             if d >= 6 || (c == .off && p != .off) {
                 do { try device.setZone(z, c); sent.zones[z] = c }
-                catch DeviceError.suspended { break }    // 차단기 열림: 남은 존도 보내지 않음
-                catch { FileHandle.standardError.write("setZone \(z): \(error)\n".data(using: .utf8)!) }
+                catch {   // stall·타임아웃·차단기 열림: 이 프레임은 버리고 남은 존도 보내지 않는다 (sent는 그대로라 다음 틱이 다시 시도). UI엔 올리지 않음
+                    if case DeviceError.suspended = error {} else { samplerLog("setZone \(z) skipped: \(error)") }
+                    break
+                }
             }
         }
         lock.withLock { _lastFrame = f }

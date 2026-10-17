@@ -14,7 +14,7 @@ final class AppState {
     var audioError: String?
     var deviceError: String?
     var levels = AudioLevels.silence
-    var zoneColors = ZoneColors.off        // 엔진이 마지막으로 보낸 프레임 (30Hz)
+    var zoneColors = ZoneColors.off        // 엔진이 마지막으로 보낸 프레임 (10Hz)
     var applied: Profile                   // 장치에 반영된 값
     var draft: Profile                     // 설정 창에서 편집 중인 값
     var hasChanges: Bool {
@@ -52,7 +52,7 @@ final class AppState {
             Task { @MainActor in
                 guard let self else { return }
                 self.connected = true; self.deviceError = nil
-                self.push(self.applied)
+                self.push(self.applied, volume: false)   // 켜질 때·재연결 땐 지금 볼륨 유지 — 볼륨은 프로필을 바꿀 때만
             }
         }
         device.onDisconnect = { [weak self] in Task { @MainActor in self?.connected = false } }
@@ -132,13 +132,16 @@ final class AppState {
         draftAppRulesEnabled = store.appRulesEnabled
     }
 
+    /// 연결돼 있고 재연결 반복(flapping) 보류 중이 아닐 때만 장치/CoreAudio에 쓴다.
+    private var deviceReady: Bool { connected && !device.isHeld }
+
     /// 장치/시스템에 실제로 쓴다. 비휘발 값은 G560Device 쪽에서 장치 값과 비교해 다를 때만 쓴다.
-    private func push(_ p: Profile) {
+    private func push(_ p: Profile, volume: Bool = true) {
         engine.brightness = p.brightness
         engine.config = p.lighting
         engine.resend()
-        try? OutputVolume.set(p.volume)
-        guard connected else { return }
+        guard deviceReady else { return }   // 미연결·재연결 반복 중엔 볼륨(CoreAudio)·비휘발 쓰기 모두 보류
+        if volume { try? OutputVolume.set(p.volume) }
         let (woofer, brightness, eq) = (p.woofer, p.brightness == 0 ? 0 : 100, p.eq)   // 장치 밝기는 사실상 on/off — 단계는 엔진이 처리
         onDevice { try $0.setWoofer(woofer); try $0.setBrightness(brightness); try $0.setEqualizer(eq) }
     }
@@ -148,7 +151,11 @@ final class AppState {
         let device = device
         deviceIO.async { [weak self] in
             var message: String?
-            do { try work(device) } catch { message = "장치 명령 실패: \(error)" }
+            do { try work(device) }
+            catch DeviceError.suspended {   // 차단기 쿨다운(LED 프레임 stall 등)은 일시적 — 한 번 기다렸다 재시도, 그래도 안 되면 그때 표시
+                Thread.sleep(forTimeInterval: G560Device.breakerCooldown + 0.5)
+                do { try work(device) } catch { message = "장치 명령 실패: \(error)" }
+            } catch { message = "장치 명령 실패: \(error)" }
             Task { @MainActor in self?.deviceError = message }
         }
     }
@@ -204,12 +211,16 @@ final class AppState {
 
     /// 빠른 패널 슬라이더: 즉시 반영 (EQ는 프리셋 선택 시에만).
     func quickSet(volume: Double? = nil, woofer: Int? = nil, eq: [Int]? = nil) {
-        if let g = eq, connected {
+        if let g = eq, deviceReady {
             draft.eq = g; applied.eq = g
             onDevice { try $0.setEqualizer(g) }
         }
-        if let v = volume { draft.volume = v; applied.volume = v; try? OutputVolume.set(v) }
-        if let w = woofer, connected {
+        if let v0 = volume {
+            let v = OutputVolume.safe(v0)   // 슬라이더 범위가 이미 하한이지만 저장값도 하한 아래로 못 가게
+            draft.volume = v; applied.volume = v
+            if deviceReady { try? OutputVolume.set(v) }
+        }
+        if let w = woofer, deviceReady {
             draft.woofer = w; applied.woofer = w
             onDevice { try $0.setWoofer(w) }
         }

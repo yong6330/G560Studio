@@ -1,16 +1,6 @@
 import SwiftUI
 import G560Core
 
-@main
-struct G560StudioApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
-
-    var body: some Scene {
-        // 씬은 필요 없지만 App 프로토콜상 하나는 있어야 함. 실제 UI는 AppDelegate가 NSStatusItem/NSPopover/NSWindow로 관리.
-        Settings { EmptyView() }
-    }
-}
-
 /// 메뉴바 아이콘·빠른 패널·설정 창을 AppKit으로 직접 관리.
 /// SwiftUI MenuBarExtra는 아이콘을 20Hz로 갱신할 때마다 전체 레이아웃을 다시 해서 CPU를 많이 먹는다(실측 ~25%).
 @MainActor
@@ -26,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.shared = self
+        installMainMenu()
         statusItem = NSStatusBar.system.statusItem(withLength: 30)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePanel)
@@ -39,6 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.updateIcon() }
         }
+    }
+
+    /// SwiftUI App/Settings 씬이 없어 기본 메뉴도 없다 — 설정 창 텍스트 필드의 ⌘C/⌘V/⌘A/⌘Z가 동작하도록 편집 메뉴만 만든다.
+    private func installMainMenu() {
+        let main = NSMenu(), edit = NSMenu(title: "편집")
+        for (title, action, key) in [("실행 취소", "undo:", "z"), ("오려두기", "cut:", "x"), ("복사", "copy:", "c"), ("붙여넣기", "paste:", "v"), ("전체 선택", "selectAll:", "a")] {
+            edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
+        }
+        for sub in [NSMenu(), edit] { let i = NSMenuItem(); i.submenu = sub; main.addItem(i) }   // 첫 칸은 앱 메뉴 자리
+        NSApp.mainMenu = main
     }
 
     private func updateIcon() {

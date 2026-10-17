@@ -12,11 +12,6 @@ if cmd == "levels" {   // 5초간 오디오 레벨 출력 (장치 불필요)
     Thread.sleep(forTimeInterval: 5); tap.stop(); exit(0)
 }
 
-if cmd == "volume" {   // CoreAudio (장치 HID 불필요)
-    do { try OutputVolume.set(Double(args[1])! / 100) } catch { print("error:", error); exit(2) }
-    print("volume:", OutputVolume.get().map { Int(($0 * 100).rounded()) } ?? -1); exit(0)
-}
-
 if cmd == "screen" {   // 5초 화면 샘플링 진단
     let sp = ScreenSampler(); print("permission:", ScreenSampler.hasPermission, "displays:", ScreenSampler.displays())
     sp.start()
@@ -37,6 +32,9 @@ dev.onConnect = {
             let rgb = RGB(UInt8(c >> 16), UInt8((c >> 8) & 0xFF), UInt8(c & 0xFF))
             let zones = args[1] == "all" ? Array(0..<G560.zoneCount) : [Int(args[1])!]
             for z in zones { try dev.setZone(z, rgb) }
+        case "volume":   // 하한(OutputVolume.minVolume) 미만은 올려서 씀. 장치 연결 후에만, 장치 락 아래서.
+            try OutputVolume.set(Double(args[1])! / 100)
+            print("volume:", OutputVolume.get().map { Int(($0 * 100).rounded()) } ?? -1)
         case "woofer": try dev.setWoofer(Int(args[1])!); print("woofer:", try dev.woofer())
         case "eq": try dev.setEqualizer(args.dropFirst().map { Int($0)! }); print("eq:", try dev.equalizer())
         case "demo":   // 10초 사운드 반응 데모 (오디오 권한 없으면 어두운 파랑으로 고정)

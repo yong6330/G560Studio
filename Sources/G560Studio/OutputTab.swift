@@ -36,7 +36,7 @@ struct OutputTab: View {
         @Bindable var state = state
         Form {
             Section("출력") {
-                SliderRow(label: "볼륨", value: $state.draft.volume, range: 0...1, format: { "\(Int(($0 * 100).rounded()))" })
+                SliderRow(label: "볼륨", value: $state.draft.volume, range: OutputVolume.minVolume...1, format: { "\(Int(($0 * 100).rounded()))" })
                 SliderRow(label: "서브우퍼", value: Binding(get: { Double(state.draft.woofer) }, set: { state.draft.woofer = Int($0.rounded()) }),
                           range: 0...100)
             }

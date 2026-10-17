@@ -12,10 +12,21 @@ public final class G560Device: @unchecked Sendable {
     public var onConnect: (@Sendable () -> Void)?
     public var onDisconnect: (@Sendable () -> Void)?
     public var isConnected: Bool { stateLock.withLock { connected } }
+    /// 재연결이 반복되는 중(FlapGuard) — 비휘발·프로필 쓰기와 LED 스트리밍을 보류해야 한다.
+    public var isHeld: Bool { stateLock.withLock { flap.isFlapping(at: Date()) } }
 
     static let vendorID = 0x046D, productID = 0x0A78, hidppUsagePage = 0xFF43
     static let knownFeatures: [UInt16] = [0x8070, 0x8305, 0x8310, 0x8040]
     static let settleDelay: TimeInterval = 2   // ponytail: 실측값 아님, 재연결 직후 불안정이 보이면 늘릴 것
+
+    /// 명령 사이 최소 간격. 연속 전송은 USB 파이프 stall(0xE0005000)을 일으킨다 — 연결 직후 LED 4존 + 프로필 읽기/쓰기가 몰릴 때 실측.
+    /// ponytail: 실측값 아님. 시작 직후 stall이 남으면 늘리고, 사운드 반응이 굼뜨면 줄일 것. 비휘발 쓰기는 펌웨어가 굽는 동안 쉬게 더 길게.
+    static let minGap: TimeInterval = 0.04, nvGap: TimeInterval = 0.3
+    static func gap(afterFeature f: UInt16, fn: UInt8) -> TimeInterval {
+        [(0x8305, 1), (0x8310, 3), (0x8040, 2)].contains { $0.0 == Int(f) && $0.1 == Int(fn) } ? nvGap : minGap
+    }
+    /// 차단기 쿨다운 — 호출자가 suspended 뒤 한 번 기다렸다 재시도할 때 쓴다.
+    public static var breakerCooldown: TimeInterval { Breaker.cooldown }
 
     private let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     private let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 64)   // IOKit이 계속 쓰는 버퍼라 주소가 고정돼야 함
@@ -26,7 +37,9 @@ public final class G560Device: @unchecked Sendable {
     private var featureIndex: [UInt16: UInt8] = [0x0000: 0]
     private var connected = false
     private var breaker = Breaker()
+    private var flap = FlapGuard()       // stateLock 보호
     private var nextSwID: UInt8 = 1
+    private var nextAllowed = Date.distantPast   // callLock 보호: 이 시각 전엔 다음 명령을 보내지 않는다
     private var thread: Thread?
 
     public init() {}
@@ -83,6 +96,17 @@ public final class G560Device: @unchecked Sendable {
         return (IOHIDDeviceGetProperty(dev, kIOHIDPrimaryUsagePageKey as CFString) as? Int) == hidppUsagePage
     }
 
+    /// 보낼 수 있는 (기능, fn) 조합. 문서화·재전송 검증된 것만 — 그 밖의 fn은 어떤 기능에도 보내지 않는다.
+    static let allowedFns: [UInt16: Set<UInt8>] = [0x0000: [0], 0x8070: [3], 0x8305: [0, 1], 0x8310: [2, 3], 0x8040: [1, 2]]
+
+    /// 기능 id → 보낼 인덱스. 허용된 (기능, fn)이고, 인덱스가 그 기능만의 것일 때만 돌려준다
+    /// (표가 뒤섞여 LED fn3가 EQ 인덱스로, EQ set이 엉뚱한 인덱스로 나가는 사고 방지).
+    static func resolve(_ map: [UInt16: UInt8], feature: UInt16, fn: UInt8) -> UInt8? {
+        guard allowedFns[feature]?.contains(fn) == true, let idx = map[feature] else { return nil }
+        guard (idx == 0) == (feature == 0), map.values.filter({ $0 == idx }).count == 1 else { return nil }
+        return idx
+    }
+
     /// 기능 인덱스 표가 말이 되는가: 필요한 기능이 다 있고 인덱스가 서로 달라야 한다 (중복 = 응답이 뒤섞였다는 뜻).
     static func plausible(_ map: [UInt16: UInt8]) -> Bool {
         let ids = knownFeatures.compactMap { map[$0] }
@@ -93,7 +117,7 @@ public final class G560Device: @unchecked Sendable {
         guard Self.hasHIDPP(dev) else { return }
         let claimed: Bool = stateLock.withLock {
             guard device == nil else { return false }   // 이미 붙은 장치가 있으면 무시
-            device = dev; return true
+            device = dev; flap.record(at: Date()); return true
         }
         guard claimed else { return }
         IOHIDDeviceRegisterInputReportCallback(dev, inputBuffer, 64, { ctx, _, _, _, _, report, len in
@@ -131,6 +155,12 @@ public final class G560Device: @unchecked Sendable {
             guard still else { return }
             samplerLog("attach ok")
             onConnect?()
+            if isHeld {   // 보류는 시간이 지나 attach 기록이 창 밖으로 나가면 풀린다 — 그때 onConnect로 프로필을 한 번 적용
+                samplerLog("reconnect flapping: holding profile/NV writes and LED streaming")
+                DispatchQueue.global().asyncAfter(deadline: .now() + FlapGuard.window + 1) { [self] in
+                    if isConnected, !isHeld { samplerLog("flap hold released"); onConnect?() }
+                }
+            }
         }
     }
 
@@ -164,8 +194,11 @@ public final class G560Device: @unchecked Sendable {
     /// 모든 장치 명령이 지나는 곳이라 차단기도 여기 하나: 연속 무응답이면 쿨다운 동안 아무것도 보내지 않고,
     /// 쿨다운 뒤엔 읽기 전용 ping이 성공해야 다시 쓴다. 멈춘 펌웨어에 쓰기(특히 EEPROM)를 계속 보내지 않기 위함.
     public func call(feature: UInt16, fn: UInt8, params: [UInt8]) throws -> HIDPPReply {
-        guard let idx = stateLock.withLock({ featureIndex[feature] }) else { throw DeviceError.unknownFeature(feature) }
+        guard let idx = stateLock.withLock({ Self.resolve(featureIndex, feature: feature, fn: fn) }) else { throw DeviceError.unknownFeature(feature) }
         callLock.lock(); defer { callLock.unlock() }
+        let wait = nextAllowed.timeIntervalSinceNow
+        if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+        defer { nextAllowed = Date().addingTimeInterval(Self.gap(afterFeature: feature, fn: fn)) }   // 실패·ping 포함 모든 경로 뒤에
         if breaker.needsProbe {
             guard !breaker.isOpen(at: Date()) else { throw DeviceError.suspended }
             do { _ = try transact(0, fn: 1, params: [0, 0, 0x5A]) }   // IRoot.ping (읽기 전용)
@@ -177,8 +210,11 @@ public final class G560Device: @unchecked Sendable {
             let r = try transact(idx, fn: fn, params: params)
             breaker.record(true, at: Date())
             return r
-        } catch DeviceError.hidpp(let e) {       // 장치가 에러로라도 답했으면 살아있는 것
-            breaker.record(true, at: Date())
+        } catch DeviceError.hidpp(let e) {
+            // INVALID_ARGUMENT 같은 결정적 거부는 장치가 멀쩡히 답한 것. BUSY/HW_ERROR/UNKNOWN 등은 장애 신호라 차단기에 센다.
+            if Breaker.countsAsFailure(e) {
+                if breaker.record(false, at: Date()) { samplerLog("HID++ breaker open: \(e.name) feature \(String(feature, radix: 16)) fn \(fn)") }
+            } else { breaker.record(true, at: Date()) }
             throw DeviceError.hidpp(e)
         } catch {
             if breaker.record(false, at: Date()) { samplerLog("HID++ breaker open: \(error) feature \(String(feature, radix: 16)) fn \(fn)") }
@@ -212,6 +248,9 @@ struct Breaker {
     var needsProbe: Bool { failures >= Self.threshold }
     func isOpen(at now: Date) -> Bool { needsProbe && now < openUntil }
 
+    /// 에러 응답이 차단기에 장애로 세어지는가. 인자·범위·기능/함수 번호·미지원 거부(2,3,6,7,9)는 결정적이라 장치 상태와 무관.
+    static func countsAsFailure(_ e: HIDPPError) -> Bool { ![2, 3, 6, 7, 9].contains(e.code) }
+
     /// 결과 기록. 방금 열렸으면 true (로그 1회용).
     @discardableResult
     mutating func record(_ ok: Bool, at now: Date) -> Bool {
@@ -221,4 +260,15 @@ struct Breaker {
         openUntil = now.addingTimeInterval(Self.cooldown)
         return failures == Self.threshold
     }
+}
+
+/// 재연결 반복 감지. 창(60초) 안에 attach가 limit(3)번 이상이면 flapping — 장치가 불안정하니 쓰기를 보류한다.
+/// ponytail: 고정 임계값. 오탐(정상 재연결 3번)은 최대 60초 보류로 끝나므로 감수. 실측으로 조정.
+struct FlapGuard {
+    static let limit = 3
+    static let window: TimeInterval = 60
+    private var times: [Date] = []
+
+    mutating func record(at now: Date) { times = times.filter { now.timeIntervalSince($0) < Self.window } + [now] }
+    func isFlapping(at now: Date) -> Bool { times.filter { now.timeIntervalSince($0) < Self.window }.count >= Self.limit }
 }

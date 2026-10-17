@@ -63,7 +63,7 @@ struct QuickPanel: View {
 
             // 출력 (슬라이더 행)
             SliderMenuRow(title: "볼륨", value: Binding(get: { state.draft.volume }, set: { state.draft.volume = $0 }),
-                          range: 0...1, display: "\(Int((state.draft.volume * 100).rounded()))") { state.quickSet(volume: state.draft.volume) }
+                          range: OutputVolume.minVolume...1, display: "\(Int((state.draft.volume * 100).rounded()))") { state.quickSet(volume: state.draft.volume) }
             SliderMenuRow(title: "서브우퍼", value: Binding(get: { Double(state.draft.woofer) }, set: { state.draft.woofer = Int($0.rounded()) }),
                           range: 0...100, display: "\(state.draft.woofer)") { state.quickSet(woofer: state.draft.woofer) }
 
