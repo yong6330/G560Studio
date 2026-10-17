@@ -14,7 +14,7 @@ final class AppState {
     var audioError: String?
     var deviceError: String?
     var levels = AudioLevels.silence
-    var zoneColors = ZoneColors.off        // 엔진이 계산한 마지막 프레임 (10Hz, 장치 쓰기 성공 여부와 무관)
+    var zoneColors = ZoneColors.off        // 엔진이 계산한 마지막 프레임 (30Hz, 장치 쓰기와 무관)
     var applied: Profile                   // 장치에 반영된 값
     var draft: Profile                     // 설정 창에서 편집 중인 값
     var hasChanges: Bool {
@@ -58,7 +58,7 @@ final class AppState {
         device.onDisconnect = { [weak self] in Task { @MainActor in self?.connected = false } }
         tap.onLevels = { [weak self] l in
             self?.engine.update(audio: l)
-            self?.latestLevels.withLock { $0 = l }     // UI 반영은 20Hz 타이머에서 (콜백마다 뷰 갱신하면 CPU 낭비)
+            self?.latestLevels.withLock { $0 = l }     // UI 반영은 30Hz 타이머에서 (콜백마다 뷰 갱신하면 CPU 낭비)
         }
         if !device.start() {
             deviceError = "다른 G560Studio(또는 g560ctl)가 이미 스피커를 쓰고 있습니다. 하나만 실행하세요."
@@ -67,7 +67,7 @@ final class AppState {
             audioError = "시스템 오디오 접근 실패(\(error)). 시스템 설정 → 개인정보 보호 → 화면 및 시스템 오디오 녹음에서 G560Studio를 허용하세요."
         }
         engine.start()
-        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 let z = self.engine.lastFrame, l = self.latestLevels.withLock { $0 }

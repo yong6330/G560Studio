@@ -37,7 +37,8 @@ final class SafetyTests: XCTestCase {
     }
     // 명령 간격: 비휘발 쓰기 뒤는 길게, LED·읽기는 짧게 (그래도 0은 아님)
     func testCommandGap() {
-        XCTAssertEqual(G560Device.gap(afterFeature: 0x8070, fn: 3), G560Device.minGap)
+        XCTAssertEqual(G560Device.gap(afterFeature: 0x8070, fn: 3), G560Device.ledGap)
+        XCTAssertEqual(G560Device.gap(afterFeature: 0x8070, fn: 1), G560Device.minGap)
         XCTAssertEqual(G560Device.gap(afterFeature: 0x8305, fn: 0), G560Device.minGap)
         for (f, fn) in [(0x8305, 1), (0x8310, 3), (0x8040, 2)] as [(UInt16, UInt8)] { XCTAssertEqual(G560Device.gap(afterFeature: f, fn: fn), G560Device.nvGap) }
         XCTAssertGreaterThan(G560Device.minGap, 0)

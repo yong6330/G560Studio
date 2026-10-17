@@ -22,8 +22,11 @@ public final class G560Device: @unchecked Sendable {
     /// 명령 사이 최소 간격. 연속 전송은 USB 파이프 stall(0xE0005000)을 일으킨다 — 연결 직후 LED 4존 + 프로필 읽기/쓰기가 몰릴 때 실측.
     /// ponytail: 실측값 아님. 시작 직후 stall이 남으면 늘리고, 사운드 반응이 굼뜨면 줄일 것. 비휘발 쓰기는 펌웨어가 굽는 동안 쉬게 더 길게.
     static let minGap: TimeInterval = 0.04, nvGap: TimeInterval = 0.3
+    /// LED 프레임(setZone) 뒤 간격. minGap(40ms)이면 4존 프레임이 ≥160ms(~6Hz). ponytail: 실측값 — 15ms는 60초 stall 0회에 실효 10.4Hz, 10ms는 13.6Hz에 stall 0회였으나 보수적으로 15ms. stall(0xE0005000)이 보이면 올릴 것
+    static let ledGap: TimeInterval = 0.015
     static func gap(afterFeature f: UInt16, fn: UInt8) -> TimeInterval {
-        [(0x8305, 1), (0x8310, 3), (0x8040, 2)].contains { $0.0 == Int(f) && $0.1 == Int(fn) } ? nvGap : minGap
+        if f == 0x8070 && fn == 3 { return ledGap }
+        return [(0x8305, 1), (0x8310, 3), (0x8040, 2)].contains { $0.0 == Int(f) && $0.1 == Int(fn) } ? nvGap : minGap
     }
     /// 차단기 쿨다운 — 호출자가 suspended 뒤 한 번 기다렸다 재시도할 때 쓴다.
     public static var breakerCooldown: TimeInterval { Breaker.cooldown }
@@ -40,6 +43,7 @@ public final class G560Device: @unchecked Sendable {
     private var flap = FlapGuard()       // stateLock 보호
     private var nextSwID: UInt8 = 1
     private var nextAllowed = Date.distantPast   // callLock 보호: 이 시각 전엔 다음 명령을 보내지 않는다
+    private var nextAllowedNonLED = Date.distantPast   // callLock 보호: LED 프레임이 아닌 명령용 (LED 직후에도 minGap 이상 쉰다)
     private var thread: Thread?
 
     public init() {}
@@ -196,9 +200,13 @@ public final class G560Device: @unchecked Sendable {
     public func call(feature: UInt16, fn: UInt8, params: [UInt8]) throws -> HIDPPReply {
         guard let idx = stateLock.withLock({ Self.resolve(featureIndex, feature: feature, fn: fn) }) else { throw DeviceError.unknownFeature(feature) }
         callLock.lock(); defer { callLock.unlock() }
-        let wait = nextAllowed.timeIntervalSinceNow
+        let isLED = feature == 0x8070 && fn == 3
+        let wait = (isLED ? nextAllowed : nextAllowedNonLED).timeIntervalSinceNow
         if wait > 0 { Thread.sleep(forTimeInterval: wait) }
-        defer { nextAllowed = Date().addingTimeInterval(Self.gap(afterFeature: feature, fn: fn)) }   // 실패·ping 포함 모든 경로 뒤에
+        defer {   // 실패·ping 포함 모든 경로 뒤에
+            let g = Self.gap(afterFeature: feature, fn: fn), now = Date()
+            nextAllowed = now.addingTimeInterval(g); nextAllowedNonLED = now.addingTimeInterval(max(g, Self.minGap))
+        }
         if breaker.needsProbe {
             guard !breaker.isOpen(at: Date()) else { throw DeviceError.suspended }
             do { _ = try transact(0, fn: 1, params: [0, 0, 0x5A]) }   // IRoot.ping (읽기 전용)
