@@ -25,9 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.animates = false
         popover.contentViewController = NSHostingController(rootView: QuickPanel().environment(state))
         updateIcon()
-        // 아이콘: 12Hz, 눈에 띄게 바뀔 때만 다시 그림. 모니터가 여러 대면 AppKit이 메뉴바마다 복제본을 다시 그려서
-        // 갱신 한 번이 비싸다(실측: 20Hz 무조건 갱신 시 메인 스레드 ~18%).
-        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { [weak self] _ in
+        // 아이콘: 16Hz 타이머. 소리가 있을 때만 매 틱 다시 그리고, 무음이면 색이 바뀔 때만 그림.
+        // 모니터가 여러 대면 AppKit이 메뉴바마다 복제본을 다시 그려서 갱신 한 번이 비싸다(실측: 20Hz 무조건 갱신 시 메인 스레드 ~18%).
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 16, repeats: true) { [weak self] _ in   // ponytail: 16Hz = 파형이 부드러운 최소선. 1Hz당 CPU ~1%라 올리면 비례해서 오름
             Task { @MainActor in self?.updateIcon() }
         }
     }
@@ -46,11 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = (state.levels, state.zoneColors, state.connected)
         if styleWas != state.menuBarStyle { styleWas = state.menuBarStyle; lastIconKey = nil }
         if let k = lastIconKey, k.2 == key.2 {
-            let rmsDelta = abs(k.0.rms - key.0.rms)
             let colorDelta = zip(k.1.zones, key.1.zones).map { a, b in max(abs(Int(a.r) - Int(b.r)), abs(Int(a.g) - Int(b.g)), abs(Int(a.b) - Int(b.b))) }.max() ?? 0
             let silent = key.0.rms < 0.002 && k.0.rms < 0.002
-            if silent && colorDelta < 6 { return }                    // 무음 + 색 거의 그대로 → 갱신 없음
-            if rmsDelta < 0.01 && colorDelta < 6 { return }           // 미세 변화는 건너뜀
+            if silent && colorDelta < 6 { return }                    // 무음 + 색 거의 그대로 → 갱신 없음 (소리가 있으면 파형이 움직이므로 매번 그림)
         }
         lastIconKey = key
         statusItem.button?.image = MenuBarIcon.render(levels: key.0, zones: key.1, connected: key.2, style: state.menuBarStyle)

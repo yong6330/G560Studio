@@ -14,7 +14,7 @@ final class AppState {
     var audioError: String?
     var deviceError: String?
     var levels = AudioLevels.silence
-    var zoneColors = ZoneColors.off        // 엔진이 마지막으로 보낸 프레임 (10Hz)
+    var zoneColors = ZoneColors.off        // 엔진이 계산한 마지막 프레임 (10Hz, 장치 쓰기 성공 여부와 무관)
     var applied: Profile                   // 장치에 반영된 값
     var draft: Profile                     // 설정 창에서 편집 중인 값
     var hasChanges: Bool {

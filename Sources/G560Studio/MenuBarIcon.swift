@@ -10,18 +10,29 @@ enum MenuBarStyle: String, Codable, CaseIterable, Sendable {
 enum MenuBarIcon {
     static let size = NSSize(width: 22, height: 18)
     nonisolated(unsafe) private static var phase: CGFloat = 0
+    nonisolated(unsafe) private static var lastT = CACurrentMediaTime()
     nonisolated(unsafe) static let glyph: NSImage? =
         Bundle.main.url(forResource: "logo-glyph", withExtension: "png").flatMap { NSImage(contentsOf: $0) }
 
     static func render(levels: AudioLevels, zones: ZoneColors, connected: Bool, style: MenuBarStyle) -> NSImage {
-        phase += 0.18 + CGFloat(levels.rms) * 0.5
-        let img = NSImage(size: size, flipped: false) { rect in
-            switch style {
-            case .wave: drawWave(rect, levels, zones, connected)
-            case .logo: drawLogo(rect, levels, zones, connected)
-            }
-            return true
+        // 위상은 경과 시간 기준 — 렌더를 건너뛰어도 속도가 일정하다(예전엔 렌더 1회당 증가 → 건너뛰면 뚝뚝 끊김)
+        let now = CACurrentMediaTime(), dt = min(0.1, now - lastT); lastT = now
+        phase += CGFloat(dt) * (2.2 + CGFloat(levels.rms) * 6)   // ponytail: 예전 12Hz 기준 0.18+rms*0.5/렌더와 같은 속도
+        // 비트맵으로 한 번만 그려 둔다. 핸들러 이미지는 모니터(메뉴바)마다·갱신마다 다시 그려져서 비쌌다.
+        let scale = 2   // ponytail: 레티나 고정. 비레티나 모니터에선 축소돼 보임
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width) * scale, pixelsHigh: Int(size.height) * scale,
+                                   bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let rect = NSRect(origin: .zero, size: size)
+        switch style {
+        case .wave: drawWave(rect, levels, zones, connected)
+        case .logo: drawLogo(rect, levels, zones, connected)
         }
+        NSGraphicsContext.restoreGraphicsState()
+        let img = NSImage(size: size)
+        img.addRepresentation(rep)
         img.isTemplate = false
         return img
     }
