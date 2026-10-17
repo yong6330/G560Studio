@@ -16,12 +16,12 @@ macOS용 G HUB에는 소리에 반응하는 LightSync가 없고, 서브우퍼를
 | 권한 | 시스템 오디오 녹음 (필수), 화면 기록 (화면·다이나믹 샘플러 사용 시) |
 | 설치 용량 | 약 2.6 MB (다운로드 zip 약 1 MB) |
 | 메모리 | 약 80 MB (화면 샘플러 사용 시 최대 ~110 MB) |
-| CPU (M3 Pro 1코어 기준) | 유휴·조명 끔 약 4% / 사운드 반응 재생 중 약 8% / 다이나믹 샘플러 약 18% |
+| CPU (M3 Pro, 모니터 3대 기준) | 사운드 반응 재생 중 약 13~18% · 설정 창을 열어 두면 +8~10% (미리보기 30 Hz) |
 | 의존성 | 없음 (외부 라이브러리·런타임 미사용, 순수 Swift + 시스템 프레임워크) |
-| 조명 갱신 | 24 Hz, 변화가 있는 존만 전송 |
+| 조명 갱신 | 화면 표시 30 Hz · 장치 전송 약 10 Hz, 변화가 있는 존만 전송 |
 | 배포 | 자체 서명 (Developer ID 공증 없음) · 오픈소스 |
 
-CPU·메모리는 M3 Pro 실측 기준이며 재생 콘텐츠와 디스플레이 수에 따라 달라집니다.
+CPU·메모리는 M3 Pro 실측 기준이며 재생 콘텐츠와 디스플레이 수에 따라 달라집니다 (메뉴바 아이콘 갱신 비용은 모니터 수에 비례).
 
 ## 설치
 
@@ -75,7 +75,7 @@ CPU·메모리는 M3 Pro 실측 기준이며 재생 콘텐츠와 디스플레이
 
 <img src="docs/img/tab-output.png" width="360" align="right" alt="출력 탭">
 
-- **볼륨** — macOS 출력 볼륨 (CoreAudio)
+- **볼륨** — macOS 출력 볼륨 (CoreAudio). 스피커 보호를 위해 5% 아래와 음소거는 보내지 않고, 앱을 켤 때는 현재 볼륨을 그대로 둡니다 (프로필을 바꿀 때만 적용)
 - **서브우퍼** — 0~100, 장치에 직접 씀 (아파트에서 제일 중요한 슬라이더)
 - **Equalizer** — 10밴드 하드웨어 EQ (32 Hz ~ 16 kHz, −20 ~ +6 dB), Spotify 목록을 옮긴 프리셋 23종 + Custom. 장치 EEPROM에 저장되므로 슬라이더를 놓을 때만 씁니다.
 
@@ -103,13 +103,13 @@ flowchart LR
         Tap[Core Audio<br>Process Tap]
         SCK[ScreenCaptureKit]
         WS[NSWorkspace<br>앱 활성화]
-        CA[CoreAudio<br>볼륨 · 포맷]
+        CA[CoreAudio<br>볼륨]
     end
 
     subgraph G560Core
         LM[LevelMeter<br>RMS · 저/중/고 대역]
         SS[ScreenSampler<br>4구역 평균색]
-        LE[LightingEngine<br>10 Hz 프레임]
+        LE[LightingEngine<br>30 Hz 계산 · 10 Hz 전송]
         LC[LightingConfig<br>고정 · 브리딩 · 사운드 · 화면 · 다이나믹]
         DEV[G560Device<br>IOHIDManager · HID++]
         PS[ProfileStore<br>profiles.json]
@@ -139,6 +139,10 @@ flowchart LR
 - **tools/** — 프로토콜을 알아낼 때 쓴 Python 스크립트와 공장 초기값 스냅샷.
 
 조명 애니메이션은 전부 소프트웨어에서 계산하고 장치에는 "존 N을 이 색으로" 명령 하나만 10 Hz로 보냅니다. 장치에 쓰는 HID++ 명령은 재전송 검증된 4개(LED, 서브우퍼, EQ, 밝기)뿐이고, 펌웨어·리셋 계열은 호출하지 않습니다. 자세한 실측 내용은 [docs/protocol.md](docs/protocol.md).
+
+## 문제 해결
+
+**스피커가 USB로 붙었다 떨어지기를 반복하고, 알림음은 나는데 음악(USB·블루투스·헤드폰)이 전부 무음일 때** — 펌웨어가 "음소거 + 최저 볼륨" 상태로 잠긴 경우입니다 (펌웨어 122.3.23 변경 내역: "볼륨 0에서 헤드폰 분리 시 영구 음소거" 수정). Windows PC에 USB로 연결하고 스피커 전원을 껐다 켜서 인식된 순간 Logitech 공식 [G560Update_122.3.23.exe](https://download01.logi.com/web/ftp/pub/techsupport/gaming/G560Update_122.3.23.exe)로 펌웨어를 다시 설치한 뒤, Windows 사운드 설정에서 음소거를 풀고 볼륨을 올리면 복구됩니다. 이 앱은 그 상태를 피하려고 볼륨 0·음소거를 보내지 않습니다.
 
 ## 소스에서 빌드
 
