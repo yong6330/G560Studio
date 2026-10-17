@@ -7,7 +7,7 @@ final class ProfileTests: XCTestCase {
     func testFreshStoreHasDefaultProfileActive() {
         let s = ProfileStore(url: tmp())
         XCTAssertEqual(s.profiles.count, 1); XCTAssertEqual(s.activeID, s.profiles[0].id)
-        XCTAssertEqual(s.active?.woofer, 20); XCTAssertEqual(s.active?.eq, [Int](repeating: 0, count: 10))
+        XCTAssertEqual(s.active?.woofer, 40); XCTAssertEqual(s.active?.eq, [Int](repeating: 0, count: 10))
     }
     func testRoundTrip() throws {
         let url = tmp()

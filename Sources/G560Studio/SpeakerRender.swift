@@ -4,9 +4,9 @@ import G560Core
 /// 어두운 무대 위의 G560 실사(Assets/g560.png).
 /// 글로우는 사진 *뒤*에 깔아 몸체에 묻지 않고 주변으로만 번지게 하고, 실제 LED 렌즈 위치에만 작은 하이라이트를 얹는다.
 struct SpeakerRender: View {
-    let zones: ZoneColors
-    let levels: AudioLevels
-    let connected: Bool
+    @Environment(AppState.self) var state     // 여기서 직접 읽어야 부모 Form이 매 프레임 재렌더되지 않는다
+    var zones: ZoneColors { state.zoneColors }
+    var connected: Bool { state.connected }
 
     static let photo: NSImage? = Bundle.main.url(forResource: "g560", withExtension: "png").flatMap { NSImage(contentsOf: $0) }
     static let aspect: CGFloat = 1200.0 / 851.0

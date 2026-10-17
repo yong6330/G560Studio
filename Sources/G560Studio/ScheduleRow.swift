@@ -17,37 +17,47 @@ struct ScheduleRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Toggle("", isOn: Binding(get: { rule.enabled }, set: { rule.enabled = $0; onChange() })).toggleStyle(.switch).controlSize(.small).labelsHidden()
                 DatePicker("", selection: time, displayedComponents: .hourAndMinute).labelsHidden()
+                Spacer(minLength: 0)
+                Button("매일") { rule.weekdays = Set(1...7); onChange() }.controlSize(.small)
+                Button("평일") { rule.weekdays = [2, 3, 4, 5, 6]; onChange() }.controlSize(.small)
+                Button { onDelete() } label: { Image(systemName: "trash") }.controlSize(.small)
+            }
+            HStack(spacing: 6) {   // 폭이 모자라면 피커가 줄어든다 (고정 폭 금지)
                 Picker("", selection: Binding(get: { rule.fromProfileID ?? state.store.profiles[0].id }, set: { rule.fromProfileID = $0; onChange() })) {
                     ForEach(state.store.profiles) { p in Text(p.name).tag(p.id) }
-                }.labelsHidden().frame(width: 120)
+                }.labelsHidden().frame(maxWidth: .infinity)
                 Image(systemName: "arrow.right").foregroundStyle(.secondary)
                 Picker("", selection: Binding(get: { rule.profileID }, set: { rule.profileID = $0; onChange() })) {
                     ForEach(state.store.profiles) { p in Text(p.name).tag(p.id) }
-                }.labelsHidden().frame(width: 120)
-                Spacer()
-                Button { onDelete() } label: { Image(systemName: "trash") }.controlSize(.small)
+                }.labelsHidden().frame(maxWidth: .infinity)
             }
-            HStack(spacing: 4) {
-                ForEach(1...7, id: \.self) { d in
-                    let on = rule.weekdays.contains(d)
-                    Button(ScheduleTab.dayNames[d - 1]) {
-                        if on { rule.weekdays.remove(d) } else { rule.weekdays.insert(d) }
-                        onChange()
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(on ? .accentColor : nil)
-                    .foregroundStyle(on ? Color.accentColor : .secondary)
-                    .frame(width: 34)
-                }
-                Spacer()
-                Button("매일") { rule.weekdays = Set(1...7); onChange() }.controlSize(.small)
-                Button("평일") { rule.weekdays = [2, 3, 4, 5, 6]; onChange() }.controlSize(.small)
-            }
+            WeekdayChips(days: $rule.weekdays, onChange: onChange)
         }
         .padding(.vertical, 2)
         .opacity(rule.enabled ? 1 : 0.5)
+    }
+}
+
+/// 일~토 토글 칩. 폭에 맞춰 균등 분할(고정 폭 없음).
+struct WeekdayChips: View {
+    @Binding var days: Set<Int>
+    var onChange: () -> Void = {}
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(1...7, id: \.self) { d in
+                let on = days.contains(d)
+                Button(ScheduleTab.dayNames[d - 1]) {
+                    if on { days.remove(d) } else { days.insert(d) }
+                    onChange()
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .tint(on ? .accentColor : nil)
+                .foregroundStyle(on ? Color.accentColor : .secondary)
+                .frame(maxWidth: .infinity)
+            }
+        }
     }
 }

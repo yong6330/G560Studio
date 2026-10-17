@@ -7,6 +7,9 @@ struct ProfilesTab: View {
     @Environment(AppState.self) var state
     @State private var confirmRestore = false
     @State private var showPicker = false
+    @State private var showExport = false
+    @State private var showImport = false
+    @State private var ioMessage: String?
 
     var runningApps: [NSRunningApplication] {
         NSWorkspace.shared.runningApplications
@@ -36,12 +39,11 @@ struct ProfilesTab: View {
                 }
             }
 
-            Section("자동 전환") {
+            Section("시간 규칙") {
                 Toggle("시간 규칙 사용", isOn: $state.draftScheduleEnabled)
-                Toggle("앱 규칙 사용", isOn: $state.draftAppRulesEnabled)
                 if state.store.scheduleEnabled, let r = Schedule.activeRule(state.store.schedule, at: Date()),
                    let p = state.store.profiles.first(where: { $0.id == r.profileID }) {
-                    LabeledContent("적용 중인 시간 규칙") {
+                    LabeledContent("적용 중") {
                         let from = state.store.profiles.first { $0.id == r.fromProfileID }?.name ?? "—"
                         Text("\(String(format: "%02d:%02d", r.hour, r.minute))   \(from) → \(p.name)").foregroundStyle(.secondary)
                     }
@@ -49,22 +51,27 @@ struct ProfilesTab: View {
                 ForEach(state.draftSchedule) { r in
                     ScheduleRow(rule: scheduleBinding(r.id)) { } onDelete: { state.draftSchedule.removeAll { $0.id == r.id } }
                 }
+                LabeledContent("") {
+                    Button("시간 규칙 추가") {
+                        let pid = state.store.activeID ?? state.store.profiles[0].id
+                        state.draftSchedule.append(ScheduleRule(hour: 22, minute: 0, fromProfileID: pid, profileID: pid))
+                        state.draftScheduleEnabled = true
+                    }
+                }
+            }
+
+            Section("앱 규칙") {
+                Toggle("앱 규칙 사용", isOn: $state.draftAppRulesEnabled)
                 ForEach(state.draftAppRules) { r in
                     AppRuleRow(rule: appBinding(r.id)) { state.draftAppRules.removeAll { $0.id == r.id } }
                 }
                 LabeledContent("") {
-                    Menu("규칙 추가") {
-                        Button("시간 규칙") {
-                            let pid = state.store.activeID ?? state.store.profiles[0].id
-                            state.draftSchedule.append(ScheduleRule(hour: 22, minute: 0, fromProfileID: pid, profileID: pid))
-                            state.draftScheduleEnabled = true
+                    Menu("앱 규칙 추가") {
+                        ForEach(runningApps, id: \.processIdentifier) { app in
+                            Button(app.localizedName ?? app.bundleIdentifier!) { addApp(bundleID: app.bundleIdentifier!, name: app.localizedName ?? app.bundleIdentifier!) }
                         }
-                        Menu("앱 규칙 — 실행 중인 앱") {
-                            ForEach(runningApps, id: \.processIdentifier) { app in
-                                Button(app.localizedName ?? app.bundleIdentifier!) { addApp(bundleID: app.bundleIdentifier!, name: app.localizedName ?? app.bundleIdentifier!) }
-                            }
-                        }
-                        Button("앱 규칙 — 앱 파일 선택…") { showPicker = true }
+                        Divider()
+                        Button("앱 파일 선택…") { showPicker = true }
                     }
                     .fixedSize()
                     .fileImporter(isPresented: $showPicker, allowedContentTypes: [.applicationBundle]) { r in
@@ -75,6 +82,15 @@ struct ProfilesTab: View {
                 }
             }
 
+            Section("백업") {
+                LabeledContent("프로필과 규칙") {
+                    HStack {
+                        Button("내보내기…") { showExport = true }
+                        Button("가져오기…") { showImport = true }
+                    }
+                }
+                if let m = ioMessage { Text(m).font(.caption).foregroundStyle(.secondary) }
+            }
             Section("장치") {
                 LabeledContent("공장 초기값") {
                     Button("초기화…", role: .destructive) { confirmRestore = true }
@@ -85,6 +101,24 @@ struct ProfilesTab: View {
             }
         }
         .formStyle(.grouped)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .contentShape(Rectangle())
+        .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // 빈 곳 클릭 → 이름 편집 종료
+        .fileExporter(isPresented: $showExport, document: JSONDocument(data: (try? state.store.exportData()) ?? Data()),
+                      contentType: .json, defaultFilename: "G560Studio-profiles") { r in
+            ioMessage = (try? r.get()) != nil ? "내보냈습니다." : "내보내기 실패"
+        }
+        .fileImporter(isPresented: $showImport, allowedContentTypes: [.json]) { r in
+            do {
+                let url = try r.get()
+                guard url.startAccessingSecurityScopedResource() else { throw CocoaError(.fileReadNoPermission) }
+                defer { url.stopAccessingSecurityScopedResource() }
+                try state.store.importData(try Data(contentsOf: url))
+                state.discardChanges()
+                ioMessage = "가져왔습니다: 프로필 \(state.store.profiles.count)개"
+            } catch { ioMessage = "가져오기 실패: \(error.localizedDescription)" }
+        }
     }
 
     func scheduleBinding(_ id: UUID) -> Binding<ScheduleRule> {
@@ -117,7 +151,7 @@ struct ProfileRow: View {
                 .opacity(active ? 1 : 0)
             TextField("", text: name, prompt: Text("프로필 이름")).labelsHidden().textFieldStyle(.plain)
                 .focused($editing)
-                .onSubmit { try? state.store.save(); editing = false }          // Enter → 저장 + 커서 해제
+                .onSubmit { try? state.store.save(); editing = false; NSApp.keyWindow?.makeFirstResponder(nil) }   // Enter → 저장 + 커서 해제
                 .onChange(of: editing) { _, on in if !on { try? state.store.save() } }   // 포커스 아웃 → 저장
             Spacer()
             ProfilePeekButton(profile: profile)
@@ -156,6 +190,7 @@ struct ProfilePeekButton: View {
                     Text(profile.name).font(.headline)
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                         GridRow { Text("조명").foregroundStyle(.secondary); Text(lightingText) }
+                        GridRow { Text("밝기").foregroundStyle(.secondary); Text("\(profile.brightness)") }
                         GridRow { Text("볼륨").foregroundStyle(.secondary); Text("\(Int((profile.volume * 100).rounded()))") }
                         GridRow { Text("서브우퍼").foregroundStyle(.secondary); Text("\(profile.woofer)") }
                         GridRow { Text("EQ").foregroundStyle(.secondary); Text(EQPresets.name(for: profile.eq) ?? "Custom") }
@@ -165,4 +200,14 @@ struct ProfilePeekButton: View {
                 .frame(minWidth: 300, alignment: .leading)
             }
     }
+}
+
+
+/// fileExporter용 JSON 문서
+struct JSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }

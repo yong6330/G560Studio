@@ -2,6 +2,7 @@ import Foundation
 import G560Core
 import Observation
 import AppKit
+import os
 
 @Observable @MainActor
 final class AppState {
@@ -13,7 +14,7 @@ final class AppState {
     var audioError: String?
     var deviceError: String?
     var levels = AudioLevels.silence
-    var zoneColors = ZoneColors.off        // 엔진이 마지막으로 보낸 프레임 (30Hz)
+    var zoneColors = ZoneColors.off        // 엔진이 계산한 마지막 프레임 (30Hz, 장치 쓰기와 무관)
     var applied: Profile                   // 장치에 반영된 값
     var draft: Profile                     // 설정 창에서 편집 중인 값
     var hasChanges: Bool {
@@ -30,6 +31,11 @@ final class AppState {
     /// 앱 규칙이 발동 중이면 (규칙, 발동 전 활성 프로필 id)
     private var appOverride: (rule: AppRule, restoreID: UUID)?
     private var lastFrontApp: String?      // 자기 자신(설정 창) 제외한 마지막 앞 앱
+    private let latestLevels = OSAllocatedUnfairLock(initialState: AudioLevels.silence)
+    private let deviceIO = DispatchQueue(label: "device-io")   // HID++ 명령은 메인 밖에서, 요청 순서대로
+    var menuBarStyle: MenuBarStyle = MenuBarStyle(rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "") ?? .wave {
+        didSet { UserDefaults.standard.set(menuBarStyle.rawValue, forKey: "menuBarStyle") }
+    }
 
     init() {
         engine = LightingEngine(device: device)
@@ -46,21 +52,28 @@ final class AppState {
             Task { @MainActor in
                 guard let self else { return }
                 self.connected = true; self.deviceError = nil
-                self.push(self.applied, eq: true)
+                self.push(self.applied, volume: false)   // 켜질 때·재연결 땐 지금 볼륨 유지 — 볼륨은 프로필을 바꿀 때만
             }
         }
         device.onDisconnect = { [weak self] in Task { @MainActor in self?.connected = false } }
         tap.onLevels = { [weak self] l in
             self?.engine.update(audio: l)
-            Task { @MainActor in self?.levels = l }
+            self?.latestLevels.withLock { $0 = l }     // UI 반영은 30Hz 타이머에서 (콜백마다 뷰 갱신하면 CPU 낭비)
         }
-        device.start()
+        if !device.start() {
+            deviceError = "다른 G560Studio(또는 g560ctl)가 이미 스피커를 쓰고 있습니다. 하나만 실행하세요."
+        }
         do { try tap.start() } catch {
             audioError = "시스템 오디오 접근 실패(\(error)). 시스템 설정 → 개인정보 보호 → 화면 및 시스템 오디오 녹음에서 G560Studio를 허용하세요."
         }
         engine.start()
         iconTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.zoneColors = self?.engine.lastFrame ?? .off }
+            Task { @MainActor in
+                guard let self else { return }
+                let z = self.engine.lastFrame, l = self.latestLevels.withLock { $0 }
+                if z != self.zoneColors { self.zoneColors = z }       // 같으면 뷰 갱신 안 함
+                if l != self.levels { self.levels = l }
+            }
         }
         // 스케줄: 시작 시 1회 + 매분. 규칙이 바뀔 때만 발동 (수동 전환은 다음 규칙까지 유지).
         lastFiring = Schedule.activeFiring(store.schedule, at: Date())
@@ -81,7 +94,8 @@ final class AppState {
         if bundleID == Bundle.main.bundleIdentifier { return }   // 설정 창으로 오는 건 "앱을 벗어남"이 아님
         lastFrontApp = bundleID
         guard store.appRulesEnabled else { return }
-        let match = bundleID.flatMap { b in store.appRules.first { $0.enabled && $0.bundleID == b } }
+        let now = Date()
+        let match = bundleID.flatMap { b in store.appRules.first { $0.bundleID == b && $0.isActive(at: now) } }
         if let m = match {
             if appOverride?.rule == m { return }                     // 같은 규칙, 같은 대상이면 그대로
             let restore = appOverride?.restoreID ?? store.activeID ?? store.profiles[0].id
@@ -95,9 +109,12 @@ final class AppState {
 
     func tickSchedule() {
         let current = Schedule.activeFiring(store.schedule, at: Date())
-        guard current != lastFiring else { return }
-        lastFiring = current
-        if store.scheduleEnabled, let f = current { fire(f.rule, force: false) }
+        if current != lastFiring {
+            lastFiring = current
+            if store.scheduleEnabled, let f = current { fire(f.rule, force: false) }
+        }
+        // 앱 규칙의 시간대 경계도 매분 재평가
+        if store.appRulesEnabled, store.appRules.contains(where: { $0.hasTimeLimit }) { frontAppChanged(lastFrontApp) }
     }
 
     private func fire(_ rule: ScheduleRule, force: Bool) {
@@ -115,17 +132,32 @@ final class AppState {
         draftAppRulesEnabled = store.appRulesEnabled
     }
 
-    /// 장치/시스템에 실제로 쓴다. EQ는 EEPROM이라 바뀐 경우에만.
-    private func push(_ p: Profile, eq: Bool) {
+    /// 연결돼 있고 재연결 반복(flapping) 보류 중이 아닐 때만 장치/CoreAudio에 쓴다.
+    private var deviceReady: Bool { connected && !device.isHeld }
+
+    /// 장치/시스템에 실제로 쓴다. 비휘발 값은 G560Device 쪽에서 장치 값과 비교해 다를 때만 쓴다.
+    private func push(_ p: Profile, volume: Bool = true) {
+        engine.brightness = p.brightness
         engine.config = p.lighting
         engine.resend()
-        try? OutputVolume.set(p.volume)
-        guard connected else { return }
-        do {
-            try device.setWoofer(p.woofer)
-            if eq { try device.setEqualizer(p.eq) }
-            deviceError = nil
-        } catch { deviceError = "장치 명령 실패: \(error)" }
+        guard deviceReady else { return }   // 미연결·재연결 반복 중엔 볼륨(CoreAudio)·비휘발 쓰기 모두 보류
+        if volume { try? OutputVolume.set(p.volume) }
+        let (woofer, brightness, eq) = (p.woofer, p.brightness == 0 ? 0 : 100, p.eq)   // 장치 밝기는 사실상 on/off — 단계는 엔진이 처리
+        onDevice { try $0.setWoofer(woofer); try $0.setBrightness(brightness); try $0.setEqualizer(eq) }
+    }
+
+    /// 장치 명령은 응답마다 최대 200ms 기다리므로 메인 스레드에서 돌리지 않는다. 결과(에러)만 UI에 반영.
+    private func onDevice(_ work: @escaping @Sendable (G560Device) throws -> Void) {
+        let device = device
+        deviceIO.async { [weak self] in
+            var message: String?
+            do { try work(device) }
+            catch DeviceError.suspended {   // 차단기 쿨다운(LED 프레임 stall 등)은 일시적 — 한 번 기다렸다 재시도, 그래도 안 되면 그때 표시
+                Thread.sleep(forTimeInterval: G560Device.breakerCooldown + 0.5)
+                do { try work(device) } catch { message = "장치 명령 실패: \(error)" }
+            } catch { message = "장치 명령 실패: \(error)" }
+            Task { @MainActor in self?.deviceError = message }
+        }
     }
 
     /// 활성 프로필에 값 저장. 이름은 목록(store)의 것을 유지 — 이름 변경은 목록에서만 일어난다.
@@ -140,7 +172,7 @@ final class AppState {
     /// 프로필 전체 적용 + 활성 프로필로 기록.
     /// `auto`: 스케줄/앱 규칙에 의한 전환 — 설정 창에서 편집 중인 초안은 건드리지 않는다.
     func apply(_ p: Profile, auto: Bool = false) {
-        push(p, eq: p.eq != applied.eq)
+        push(p)
         let editing = auto && draft != applied
         applied = p
         if !editing { draft = p }
@@ -151,7 +183,7 @@ final class AppState {
     /// 설정 창 "동기화": draft를 장치에 반영하고 활성 프로필에 저장. 스케줄 초안도 저장·재평가.
     func sync() {
         if draft != applied {
-            push(draft, eq: draft.eq != applied.eq)
+            push(draft)
             applied = draft
             persistActive(draft)
         }
@@ -167,19 +199,30 @@ final class AppState {
         frontAppChanged(lastFrontApp ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier)   // 규칙 바꾸면 즉시 재평가
         // 현재 시각 기준 프로필로 즉시 전환, 이후 규칙 시각마다 다음 프로필로
         lastFiring = Schedule.activeFiring(store.schedule, at: Date())
-        if store.scheduleEnabled, let f = lastFiring { fire(f.rule, force: true) }
+        if store.scheduleEnabled, let f = lastFiring, f.rule.profileID != store.activeID { fire(f.rule, force: true) }
     }
 
-    /// 빠른 패널 슬라이더: 즉시 반영 (조명/EQ는 건드리지 않음).
+    /// 빠른 패널: 조명 설정 즉시 반영 + 활성 프로필에 저장.
+    func quickSetLighting(_ l: LightingConfig) {
+        draft.lighting = l; applied.lighting = l
+        engine.config = l; engine.resend()
+        persistActive(applied)
+    }
+
+    /// 빠른 패널 슬라이더: 즉시 반영 (EQ는 프리셋 선택 시에만).
     func quickSet(volume: Double? = nil, woofer: Int? = nil, eq: [Int]? = nil) {
-        if let g = eq, connected {
+        if let g = eq, deviceReady {
             draft.eq = g; applied.eq = g
-            do { try device.setEqualizer(g); deviceError = nil } catch { deviceError = "장치 명령 실패: \(error)" }
+            onDevice { try $0.setEqualizer(g) }
         }
-        if let v = volume { draft.volume = v; applied.volume = v; try? OutputVolume.set(v) }
-        if let w = woofer, connected {
+        if let v0 = volume {
+            let v = OutputVolume.safe(v0)   // 슬라이더 범위가 이미 하한이지만 저장값도 하한 아래로 못 가게
+            draft.volume = v; applied.volume = v
+            if deviceReady { try? OutputVolume.set(v) }
+        }
+        if let w = woofer, deviceReady {
             draft.woofer = w; applied.woofer = w
-            do { try device.setWoofer(w); deviceError = nil } catch { deviceError = "장치 명령 실패: \(error)" }
+            onDevice { try $0.setWoofer(w) }
         }
         persistActive(applied)
     }
@@ -208,7 +251,7 @@ final class AppState {
         var p = Profile.factory()
         if let existing = store.profiles.first(where: { $0.name == p.name }) { p.id = existing.id }
         if let i = store.profiles.firstIndex(where: { $0.id == p.id }) { store.profiles[i] = p } else { store.profiles.append(p) }
-        push(p, eq: true)
+        push(p)
         applied = p
         draft = p
         store.activeID = p.id

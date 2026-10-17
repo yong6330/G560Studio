@@ -14,6 +14,7 @@ public enum G560 {
     public static let wooferRange = 0...100
     public static let factoryWoofer = 40
     public static let factoryEQ = [Int](repeating: 0, count: eqBands)
+    public static let factoryBrightness = 100
 }
 
 /// docs/protocol.md 에서 재전송 검증된 명령만.
@@ -26,8 +27,19 @@ public extension G560Device {
     /// 0x8305 fn0
     func woofer() throws -> Int { Int(try call(feature: 0x8305, fn: 0, params: []).params[0]) }
     /// 0x8305 fn1
+    /// 비휘발 설정(우퍼·밝기·EQ)은 읽어서 다를 때만 쓴다 — 연결·프로필 전환마다 같은 값을 다시 굽지 않도록.
     func setWoofer(_ level: Int) throws {
-        _ = try call(feature: 0x8305, fn: 1, params: [UInt8(level.clamped(to: G560.wooferRange))])
+        let v = level.clamped(to: G560.wooferRange)
+        if try woofer() == v { return }
+        _ = try call(feature: 0x8305, fn: 1, params: [UInt8(v)])
+    }
+    /// 0x8040 fn1
+    func brightness() throws -> Int { Int(try call(feature: 0x8040, fn: 1, params: []).params[1]) }
+    /// 0x8040 fn2 [00 xx]
+    func setBrightness(_ v: Int) throws {
+        let v = v.clamped(to: 0...100)
+        if try brightness() == v { return }
+        _ = try call(feature: 0x8040, fn: 2, params: [0, UInt8(v)])
     }
     /// 0x8310 fn2
     func equalizer() throws -> [Int] {
@@ -36,7 +48,9 @@ public extension G560Device {
     /// 0x8310 fn3 [0x02][g0..g9] — EEPROM 쓰기. 슬라이더를 놓을 때만 호출할 것.
     func setEqualizer(_ gains: [Int]) throws {
         precondition(gains.count == G560.eqBands)
-        let bytes = gains.map { UInt8(bitPattern: Int8($0.clamped(to: G560.eqRange))) }
+        let clamped = gains.map { $0.clamped(to: G560.eqRange) }
+        if try equalizer() == clamped { return }
+        let bytes = clamped.map { UInt8(bitPattern: Int8($0)) }
         _ = try call(feature: 0x8310, fn: 3, params: [0x02] + bytes)
     }
 }

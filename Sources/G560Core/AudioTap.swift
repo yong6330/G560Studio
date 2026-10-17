@@ -4,7 +4,7 @@ import Foundation
 /// 시스템 출력 전체를 Process Tap으로 읽어 AudioLevels를 흘린다. macOS 14.2+.
 /// 첫 실행 시 "시스템 오디오 녹음" 권한 팝업 1회. 녹음/저장 없음 — 버퍼는 레벨 계산 후 버린다.
 public final class AudioTap: @unchecked Sendable {
-    public enum TapError: Error { case createTap(OSStatus), createAggregate(OSStatus), ioProc(OSStatus), noOutputDevice }
+    public enum TapError: Error { case createTap(OSStatus), createAggregate(OSStatus), ioProc(OSStatus) }
     public var onLevels: (@Sendable (AudioLevels) -> Void)?
     public private(set) var isRunning = false
 
@@ -75,21 +75,6 @@ public final class AudioTap: @unchecked Sendable {
         if aggID != kAudioObjectUnknown { AudioHardwareDestroyAggregateDevice(aggID); aggID = kAudioObjectUnknown }
         if tapID != kAudioObjectUnknown { AudioHardwareDestroyProcessTap(tapID); tapID = kAudioObjectUnknown }
         isRunning = false
-    }
-
-    static func defaultOutputUID() throws -> String {
-        var dev = AudioObjectID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-                                              mScope: kAudioObjectPropertyScopeGlobal,
-                                              mElement: kAudioObjectPropertyElementMain)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &dev) == noErr,
-              dev != kAudioObjectUnknown else { throw TapError.noOutputDevice }
-        var uid: CFString = "" as CFString
-        size = UInt32(MemoryLayout<CFString>.size)
-        addr.mSelector = kAudioDevicePropertyDeviceUID
-        guard AudioObjectGetPropertyData(dev, &addr, 0, nil, &size, &uid) == noErr else { throw TapError.noOutputDevice }
-        return uid as String
     }
 
     deinit { stop() }

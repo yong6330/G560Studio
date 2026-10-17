@@ -10,11 +10,17 @@ public enum HIDPP {
         5: "LOGITECH_INTERNAL", 6: "INVALID_FEATURE_INDEX", 7: "INVALID_FUNCTION_ID", 8: "BUSY", 9: "UNSUPPORTED",
     ]
 
-    public static func build(featureIndex: UInt8, fn: UInt8, params: [UInt8]) -> [UInt8] {
-        precondition(fn <= 0xF && params.count <= length - 4)
+    public static func build(featureIndex: UInt8, fn: UInt8, params: [UInt8], swID: UInt8 = swID) -> [UInt8] {
+        precondition(fn <= 0xF && swID <= 0xF && params.count <= length - 4)
         var p = [reportID, deviceIndex, featureIndex, (fn << 4) | swID] + params
         p += [UInt8](repeating: 0, count: length - p.count)
         return p
+    }
+
+    /// 요청(feature, fn, swID)에 대한 응답인가. swID를 요청마다 바꾸므로 타임아웃 뒤 늦게 온 응답은 걸러진다.
+    public static func matches(_ r: HIDPPReply, feature: UInt8, fn: UInt8, swID: UInt8) -> Bool {
+        if let e = r.error { return e.origFeature == feature && e.origFnSw == (fn << 4 | swID) }
+        return r.featureIndex == feature && r.fn == fn && r.swID == swID
     }
 
     public static func parse(_ r: [UInt8]) -> HIDPPReply? {

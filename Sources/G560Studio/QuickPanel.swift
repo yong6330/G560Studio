@@ -5,14 +5,16 @@ import ServiceManagement
 /// 메뉴바 빠른 패널 — Tailscale 스타일: 헤더(이름/상태 + 토글), 메뉴 행, 구분선, 단축키.
 struct QuickPanel: View {
     @Environment(AppState.self) var state
-    @Environment(\.openWindow) var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 헤더
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("G560Studio").font(.system(size: 15, weight: .semibold))
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("G560Studio").font(.system(size: 15, weight: .semibold))
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "").font(.caption).foregroundStyle(.tertiary)
+                    }
                     Text(state.connected ? "Logitech G560 연결됨" : "Logitech G560 연결 안 됨")
                         .font(.callout).foregroundStyle(state.connected ? .secondary : Color.red)
                 }
@@ -28,6 +30,17 @@ struct QuickPanel: View {
 
             MenuSeparator()
 
+            HStack(spacing: 10) {
+                Text("메뉴바 아이콘").frame(alignment: .leading)
+                Spacer()
+                Picker("", selection: Binding(get: { state.menuBarStyle }, set: { state.menuBarStyle = $0 })) {
+                    ForEach(MenuBarStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.labelsHidden().fixedSize()
+            }
+            .padding(.horizontal, 15).padding(.vertical, 4)
+
+            MenuSeparator()
+
             // 프로필
             Text("프로필").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 4)
             ForEach(state.store.profiles) { p in
@@ -36,9 +49,21 @@ struct QuickPanel: View {
 
             MenuSeparator()
 
+            // 조명 효과 (현재 색/파라미터 유지하며 효과만 전환)
+            HStack(spacing: 10) {
+                Text("조명").frame(width: 56, alignment: .leading)
+                Picker("", selection: Binding(get: { LightingQuick.effect(of: state.applied.lighting) },
+                                              set: { state.quickSetLighting(LightingQuick.config(for: $0, from: state.applied.lighting)) })) {
+                    ForEach(LightingQuick.Effect.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.labelsHidden()
+            }
+            .padding(.horizontal, 15).padding(.vertical, 4)
+
+            MenuSeparator()
+
             // 출력 (슬라이더 행)
             SliderMenuRow(title: "볼륨", value: Binding(get: { state.draft.volume }, set: { state.draft.volume = $0 }),
-                          range: 0...1, display: "\(Int((state.draft.volume * 100).rounded()))") { state.quickSet(volume: state.draft.volume) }
+                          range: OutputVolume.minVolume...1, display: "\(Int((state.draft.volume * 100).rounded()))") { state.quickSet(volume: state.draft.volume) }
             SliderMenuRow(title: "서브우퍼", value: Binding(get: { Double(state.draft.woofer) }, set: { state.draft.woofer = Int($0.rounded()) }),
                           range: 0...100, display: "\(state.draft.woofer)") { state.quickSet(woofer: state.draft.woofer) }
 
@@ -53,14 +78,8 @@ struct QuickPanel: View {
             }
             .padding(.horizontal, 15).padding(.vertical, 4)
 
-            MenuSeparator()
-
             LoginItemRow()
-            MenuRow(title: "설정…", shortcut: "⌘,") {
-                NSApp.keyWindow?.close()          // 메뉴바 패널 닫기
-                openWindow(id: "settings")
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            MenuRow(title: "설정…", shortcut: "⌘,") { AppDelegate.shared.openSettings() }
             .keyboardShortcut(",", modifiers: .command)
             MenuRow(title: "종료", shortcut: "⌘Q") { NSApp.terminate(nil) }
                 .keyboardShortcut("q", modifiers: .command)
@@ -132,5 +151,35 @@ struct LoginItemRow: View {
             })).toggleStyle(.switch).controlSize(.mini).labelsHidden()
         }
         .padding(.horizontal, 15).padding(.vertical, 4)
+    }
+}
+
+
+/// 빠른 패널용 효과 전환: 팔레트/파라미터는 현재 설정에서 물려받는다.
+enum LightingQuick {
+    enum Effect: String, CaseIterable { case off = "끄기", fixed = "고정", breathing = "브리딩", sound = "사운드 반응", screen = "화면 샘플러", dynamic = "다이나믹 샘플러" }
+
+    static func effect(of c: LightingConfig) -> Effect {
+        switch c {
+        case .off: .off
+        case .fixed: .fixed
+        case .breathing: .breathing
+        case .soundReactive: .sound
+        case .screenSampler(let o): o.audio ? .dynamic : .screen
+        }
+    }
+    static func config(for e: Effect, from c: LightingConfig) -> LightingConfig {
+        let palette: Palette
+        switch c { case .fixed(let p), .breathing(let p, _), .soundReactive(let p, _, _): palette = p; default: palette = .rainbow(speed: 0.05) }
+        var opts = ScreenOptions()
+        if case .screenSampler(let o) = c { opts = o }
+        switch e {
+        case .off: return .off
+        case .fixed: return .fixed(palette)
+        case .breathing: return .breathing(palette, period: 3)
+        case .sound: return .soundReactive(palette, sensitivity: 0, split: .none)
+        case .screen: opts.audio = false; return .screenSampler(opts)
+        case .dynamic: opts.audio = true; return .screenSampler(opts)
+        }
     }
 }
