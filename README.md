@@ -180,4 +180,4 @@ tools/.venv/bin/python tools/g560probe.py restore   # Python 쪽 복구 (factory
 - 기획 / 총괄 — 용석희
 - 개발 — 클로드 코드
 
-<p align="center"><img src="docs/img/onestudio.png" width="232" alt="ONESTUDIO — The one studio, made for you."></p>
+<p align="center"><img src="docs/img/brand.png" width="360" alt="YONGSTUDIO — Crafted for Momentum. by ONESTUDIO"></p>
